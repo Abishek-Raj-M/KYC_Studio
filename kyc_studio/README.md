@@ -18,7 +18,7 @@ Default install path is usually:
 
 ## Environment Setup
 
-Create or update `.env` in `kyc_studio` (`C:\AIIA\KYC\kyc_studio\.env`):
+Create or update `.env` in this folder (`C:\AIIA\KYC\kyc_studio\.env`):
 
 ```env
 DIAL_API_KEY=your_dial_api_key_here
@@ -48,13 +48,14 @@ kyc_studio/
 
 ## Backend Startup (FastAPI)
 
-From workspace root (`C:\AIIA\KYC`):
+From `kyc_studio/backend` folder:
 
 ```powershell
+cd C:\AIIA\KYC\kyc_studio\backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r kyc_studio\backend\requirements.txt
-uvicorn kyc_studio.backend.main:app --reload --host 127.0.0.1 --port 8000
+pip install -r requirements.txt
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Backend base URL:
@@ -65,16 +66,16 @@ Health check:
 
 ## Frontend Startup (Vite)
 
-Open a new terminal from workspace root:
+Open a new terminal from `kyc_studio` folder:
 
 ```powershell
-cd kyc_studio\frontend
+cd C:\AIIA\KYC\kyc_studio\frontend
 npm install
 npm run dev
 ```
 
 Frontend URL (default):
-- `http://127.0.0.1:5173`
+- `http://127.0.0.1:6969`
 
 The Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`.
 
@@ -107,7 +108,7 @@ Set `DIAL_API_KEY` in `.env` and restart backend.
 Install Tesseract and make sure it is in PATH.
 
 ### 3. Frontend cannot call backend
-Ensure backend is running on `127.0.0.1:8000` and frontend on `5173`.
+Ensure backend is running on `127.0.0.1:8000` and frontend on `6969`.
 
 ### 4. Dependency install issues
 Upgrade pip/npm:
