@@ -10,44 +10,34 @@ from typing import Optional
 class DocumentTypeDetector:
     """Detect document type from OCR text and visual features"""
     
-    # Keywords for each document type
+    # Active KYC document types supported by KYC Studio.
     KEYWORDS = {
-        "driver_license": [
-            "driver license", "driver's license", "driving license",
-            "dl ", "class c", "class a", "class b", "issued by dmv"
-        ],
         "passport": [
             "passport", "travel document", "u.s. department of state",
             "passport no", "nationality", "place of birth"
         ],
-        "passport_card": [
-            "passport card", "travel document", "card no"
+        "pan": [
+            "pan card", "permanent account number", "income tax department",
+            "pan number", "income tax", "government of india", "pancard"
         ],
-        "permanent_resident_card": [
-            "permanent resident", "green card", "uscis",
-            "resident since", "category", "card expires"
+        "aadhaar": [
+            "aadhaar", "uidai", "unique identification", "aadhaar number"
         ],
-        "birth_certificate": [
-            "birth certificate", "certificate of birth",
-            "born on", "date of birth", "mother", "father"
-        ],
-        "social_security_card": [
-            "social security", "social security number",
-            "social security administration"
-        ],
-        "bank_statement": [
-            "bank statement", "account summary", "checking account",
-            "statement period", "balance"
-        ],
-        "w2": [
-            "form w-2", "wage and tax statement", "employer's ein",
-            "wages, tips", "federal income tax"
-        ],
-        "utility_bill": [
-            "utility bill", "electric", "gas", "water",
-            "account number", "service address"
-        ]
     }
+
+    # Legacy document families kept here for future reuse, but they are intentionally
+    # not part of the active KYC classifier so the product stays focused on the three
+    # supported Indian document types.
+    # LEGACY_KEYWORDS = {
+    #     "driver_license": [...],
+    #     "passport_card": [...],
+    #     "permanent_resident_card": [...],
+    #     "birth_certificate": [...],
+    #     "social_security_card": [...],
+    #     "bank_statement": [...],
+    #     "w2": [...],
+    #     "utility_bill": [...],
+    # }
     
     def detect(self, ocr_text: str, image_filename: str = "") -> str:
         """
@@ -81,6 +71,9 @@ class DocumentTypeDetector:
         # Fallback: check filename
         if image_filename:
             filename_lower = image_filename.lower()
+            if "pan" in filename_lower:
+                print("  🎯 Detected from filename: pan")
+                return "pan"
             for doc_type in self.KEYWORDS.keys():
                 if doc_type.replace("_", "") in filename_lower.replace("_", ""):
                     print(f"  🎯 Detected from filename: {doc_type}")

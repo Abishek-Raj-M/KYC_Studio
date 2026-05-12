@@ -53,7 +53,8 @@ def _pick(data: Dict[str, Any], candidates: Iterable[str]) -> Any:
 
 def normalize_document(raw_doc: Dict[str, Any], declared_doc_type: str | None = None) -> Dict[str, Any]:
     fields = raw_doc.get("fields") if isinstance(raw_doc.get("fields"), dict) else {}
-    merged: Dict[str, Any] = {**fields, **raw_doc}
+    extracted_fields = raw_doc.get("extracted_fields") if isinstance(raw_doc.get("extracted_fields"), dict) else {}
+    merged: Dict[str, Any] = {**fields, **extracted_fields, **raw_doc}
 
     raw_type = str(declared_doc_type or raw_doc.get("document_type") or raw_doc.get("doc_type") or "").lower().strip()
     canonical_doc_type = DOC_TYPE_ALIASES.get(raw_type, raw_type or "unknown")
@@ -79,6 +80,28 @@ def normalize_documents(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def normalize_ground_truth(raw_gt: Dict[str, Any]) -> Dict[str, Any]:
+    # Manifest shape support: { person: {...}, documents: {...} }
+    if isinstance(raw_gt.get("person"), dict):
+        person = raw_gt.get("person", {})
+        documents = raw_gt.get("documents", {}) if isinstance(raw_gt.get("documents"), dict) else {}
+
+        passport_fields = ((documents.get("passport") or {}).get("fields") or {}) if isinstance(documents.get("passport"), dict) else {}
+        pan_fields = ((documents.get("pan_card") or {}).get("fields") or {}) if isinstance(documents.get("pan_card"), dict) else {}
+        aadhaar_fields = ((documents.get("aadhaar") or {}).get("fields") or {}) if isinstance(documents.get("aadhaar"), dict) else {}
+
+        return {
+            "name": _pick(person, FIELD_ALIASES.get("name", ["name"])),
+            "dob": _pick(person, FIELD_ALIASES.get("dob", ["dob"])),
+            "gender": _pick(person, FIELD_ALIASES.get("gender", ["gender"])),
+            "nationality": _pick(person, FIELD_ALIASES.get("nationality", ["nationality"])),
+            "address": _pick(aadhaar_fields, FIELD_ALIASES.get("address", ["address"])),
+            "id_numbers": {
+                "passport": _pick(passport_fields, FIELD_ALIASES.get("passport_number", ["passport_number"])),
+                "pan": _pick(pan_fields, FIELD_ALIASES.get("pan_number", ["pan_number"])),
+                "aadhaar": _pick(aadhaar_fields, FIELD_ALIASES.get("aadhaar_number", ["aadhaar_number"])),
+            },
+        }
+
     normalized: Dict[str, Any] = {}
 
     for target in ["name", "dob", "gender", "address", "nationality"]:

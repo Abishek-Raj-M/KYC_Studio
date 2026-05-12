@@ -9,7 +9,7 @@ import { DocumentResultCard } from './components/ResultsPanel/DocumentResultCard
 import { EvaluationModeBadge } from './components/ResultsPanel/EvaluationModeBadge'
 import { OverallScoreCard } from './components/ResultsPanel/OverallScoreCard'
 import { evaluateKyc, extractDocs } from './lib/api'
-import type { BothResultEnvelope, DocType, KYCResult, Side } from './lib/types'
+import type { BothResultEnvelope, DocType, GroundTruthManifest, KYCResult, RubricMode, Side } from './lib/types'
 import { useKYC } from './context/KYCContext'
 
 const DOCS: { type: DocType; title: string }[] = [
@@ -27,6 +27,7 @@ export default function App() {
     uploads,
     extractedDocs,
     groundTruth,
+    groundTruthManifest,
     rubricYaml,
     method,
     scope,
@@ -36,6 +37,7 @@ export default function App() {
     setUploads,
     setExtractedDocs,
     setGroundTruth,
+    setGroundTruthManifest,
     setRubricYaml,
     setMethod,
     setScope,
@@ -45,7 +47,9 @@ export default function App() {
   } = useKYC()
 
   const [showBack, setShowBack] = useState<Record<DocType, boolean>>({ passport: false, aadhaar: false, pan: false })
-  const [selectedDocs, setSelectedDocs] = useState<DocType[]>(['passport', 'aadhaar', 'pan'])
+  const [selectedDocs, setSelectedDocs] = useState<DocType[]>([])
+  const [rubricMode, setRubricMode] = useState<RubricMode>('single')
+  const [rubricsByDocType, setRubricsByDocType] = useState<Partial<Record<DocType, string>>>({})
 
   const extractedByDoc = useMemo(() => {
     const map = new Set(extractedDocs.map((d) => d.doc_type))
@@ -108,8 +112,19 @@ export default function App() {
       return
     }
     if ((method === 'llm' || method === 'both') && !rubricYaml.trim()) {
-      setError('Rubric YAML is required for LLM modes')
-      return
+      if (rubricMode === 'single') {
+        setError('Rubric YAML is required for LLM modes')
+        return
+      }
+    }
+    if (method === 'llm' || method === 'both') {
+      if (rubricMode === 'per_doc') {
+        const missing = selectedDocs.filter((doc) => !rubricsByDocType[doc]?.trim())
+        if (missing.length) {
+          setError(`Missing rubric for: ${missing.join(', ')}`)
+          return
+        }
+      }
     }
 
     try {
@@ -118,9 +133,12 @@ export default function App() {
       const response = await evaluateKyc({
         extracted_docs: activeExtractedDocs,
         ground_truth: groundTruth,
+        ground_truth_manifest: groundTruthManifest || undefined,
         method,
         scope,
         rubric: rubricYaml || undefined,
+        rubric_mode: rubricMode,
+        rubrics_by_doc_type: rubricsByDocType,
       })
       setResult(response.result)
     } catch (e) {
@@ -133,13 +151,12 @@ export default function App() {
   const resultSections: { label: string; data: KYCResult }[] = useMemo(() => {
     if (!result) return []
     if (isBoth(result)) {
-      return [
-        { label: 'Rule-Based', data: result.rules_result },
-        { label: 'LLM Rubric', data: result.llm_result },
-      ]
+      return [{ label: 'Combined Evaluation', data: result.combined_result }]
     }
     return [{ label: method.toUpperCase(), data: result as KYCResult }]
   }, [result, method])
+
+  const canRunKyc = Boolean(groundTruth) && !loading
 
   function toggleSelectedDoc(docType: DocType) {
     setSelectedDocs((prev) => {
@@ -153,6 +170,11 @@ export default function App() {
         })
         setExtractedDocs((current) => current.filter((d) => d.doc_type !== docType))
         setShowBack((current) => ({ ...current, [docType]: false }))
+        setRubricsByDocType((current) => {
+          const updated = { ...current }
+          delete updated[docType]
+          return updated
+        })
         setResult(null)
         setError(null)
       }
@@ -201,6 +223,7 @@ export default function App() {
               front={uploads[doc.type]?.front}
               back={uploads[doc.type]?.back}
               extracted={extractedByDoc[doc.type]}
+              extractedData={extractedDocs.find((item) => item.doc_type === doc.type && item.side === 'front')?.extracted}
               showBack={showBack[doc.type]}
               onToggleBack={() => setShowBack((prev) => ({ ...prev, [doc.type]: true }))}
               onFileDrop={handleFileDrop}
@@ -213,19 +236,36 @@ export default function App() {
             </div>
           ) : null}
 
-          <GroundTruthUpload data={groundTruth} onParsed={setGroundTruth} />
+          <GroundTruthUpload data={groundTruth} manifest={groundTruthManifest} onParsed={setGroundTruth} onParsedManifest={setGroundTruthManifest} />
           <EvaluationConfig method={method} scope={scope} onMethod={setMethod} onScope={setScope} />
-          {(method === 'llm' || method === 'both') ? <RubricUpload value={rubricYaml} onParsed={setRubricYaml} /> : null}
+          {(method === 'llm' || method === 'both') ? (
+            <RubricUpload
+              selectedDocs={selectedDocs}
+              rubricMode={rubricMode}
+              value={rubricYaml}
+              byDocType={rubricsByDocType}
+              onRubricModeChange={setRubricMode}
+              onParsed={setRubricYaml}
+              onParsedForDocType={(docType, yaml) => setRubricsByDocType((prev) => ({ ...prev, [docType]: yaml }))}
+            />
+          ) : null}
 
           <button
             type="button"
             onClick={runEvaluation}
-            disabled={loading}
+            disabled={!canRunKyc}
+            title={!groundTruth ? 'Upload ground truth JSON to enable evaluation' : undefined}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-card transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Run KYC
           </button>
+
+          {!groundTruth ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+              Upload Ground Truth JSON to continue.
+            </div>
+          ) : null}
         </aside>
 
         <section className="flex min-h-0 w-[62%] flex-col gap-3 overflow-y-auto pl-1">
@@ -244,7 +284,27 @@ export default function App() {
 
                   <OverallScoreCard score={section.data.overall_score} passed={section.data.passed} />
 
-                  {scope === 'individual' ? (
+                  {isBoth(result) ? (
+                    <div className="surface-glass rounded-2xl border border-border bg-panel p-3 shadow-card">
+                      <div className="mb-2 text-sm font-semibold">Score Breakdown</div>
+                      <div className="grid gap-2 text-xs md:grid-cols-2">
+                        <div className="rounded-lg border border-border bg-panel-muted p-2">
+                          <div className="text-fg-muted">Rules Weight</div>
+                          <div className="font-semibold">{(result.score_breakdown.rules_weight * 100).toFixed(0)}%</div>
+                          <div className="mt-1 text-fg-muted">Rules Score: {result.score_breakdown.rules_score.toFixed(2)}%</div>
+                          <div className="text-fg-muted">Contribution: {result.score_breakdown.rules_contribution.toFixed(2)}%</div>
+                        </div>
+                        <div className="rounded-lg border border-border bg-panel-muted p-2">
+                          <div className="text-fg-muted">Rubric Weight</div>
+                          <div className="font-semibold">{(result.score_breakdown.rubric_weight * 100).toFixed(0)}%</div>
+                          <div className="mt-1 text-fg-muted">Rubric Score: {result.score_breakdown.rubric_score.toFixed(2)}%</div>
+                          <div className="text-fg-muted">Contribution: {result.score_breakdown.rubric_contribution.toFixed(2)}%</div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {scope === 'individual' || isBoth(result) ? (
                     <div className="space-y-2">
                       {section.data.per_document_results.map((doc) => (
                         <DocumentResultCard key={`${section.label}-${doc.document_id}`} result={doc} />
@@ -257,7 +317,10 @@ export default function App() {
                         {section.data.checks.map((check) => (
                           <div key={check.name} className="rounded-lg border border-border bg-panel-muted p-2 text-xs">
                             <div className="flex justify-between">
-                              <span className="font-medium">{check.name}</span>
+                              <span className="font-medium">
+                                {check.name}
+                                <span className="ml-2 text-fg-muted">({check.score.toFixed(1)} / 100, w={check.weight.toFixed(2)})</span>
+                              </span>
                               <span className={check.passed ? 'text-emerald-500' : 'text-rose-500'}>
                                 {check.passed ? 'PASS' : 'FAIL'}
                               </span>

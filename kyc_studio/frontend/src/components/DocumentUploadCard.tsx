@@ -1,5 +1,6 @@
 import { CheckCircle2, FileImage, PlusCircle, Scan } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
+import { useState } from 'react'
 import type { DocType, Side, UploadedDocImage } from '../lib/types'
 
 interface DocumentUploadCardProps {
@@ -8,9 +9,16 @@ interface DocumentUploadCardProps {
   front?: UploadedDocImage
   back?: UploadedDocImage
   extracted: boolean
+  extractedData?: Record<string, unknown>
   showBack: boolean
   onToggleBack: () => void
   onFileDrop: (file: File, docType: DocType, side: Side) => void
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return 'N/A'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
 }
 
 function UploadZone({
@@ -58,7 +66,12 @@ function UploadZone({
 }
 
 export function DocumentUploadCard(props: DocumentUploadCardProps) {
-  const { docType, title, front, back, extracted, showBack, onToggleBack, onFileDrop } = props
+  const { docType, title, front, back, extracted, extractedData, showBack, onToggleBack, onFileDrop } = props
+  const [showExtractedData, setShowExtractedData] = useState(false)
+
+  const previewFields = Object.entries(extractedData || {})
+    .filter(([key]) => !key.startsWith('_'))
+    .slice(0, 8)
 
   return (
     <section className="surface-glass rounded-2xl border border-border bg-panel p-3 shadow-card">
@@ -76,6 +89,32 @@ export function DocumentUploadCard(props: DocumentUploadCardProps) {
           <span className="text-xs text-fg-muted">Awaiting image</span>
         )}
       </div>
+
+      {extracted && previewFields.length ? (
+        <div className="mb-2">
+          <button
+            type="button"
+            onClick={() => setShowExtractedData((v) => !v)}
+            className="text-xs font-medium text-link hover:opacity-80"
+          >
+            {showExtractedData ? 'Hide extracted data' : 'Show extracted data'}
+          </button>
+        </div>
+      ) : null}
+
+      {extracted && previewFields.length && showExtractedData ? (
+        <div className="mb-3 rounded-xl border border-border bg-page/40 p-2">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Extracted Data</div>
+          <div className="grid grid-cols-1 gap-1 text-xs">
+            {previewFields.map(([key, value]) => (
+              <div key={key} className="flex items-start justify-between gap-2 rounded-md bg-panel-muted px-2 py-1">
+                <span className="font-medium text-fg-muted">{key}</span>
+                <span className="max-w-[58%] break-words text-right text-fg">{formatValue(value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="space-y-3">
         <UploadZone label="Front (Required)" docType={docType} side="front" image={front} onFileDrop={onFileDrop} />

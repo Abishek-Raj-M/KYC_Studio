@@ -29,9 +29,12 @@ class GroundTruth(BaseModel):
 class KYCRequest(BaseModel):
     extracted_docs: List[DocumentUpload]
     ground_truth: GroundTruth
+    ground_truth_manifest: Optional[Dict[str, Any]] = None
     method: MethodType = "rules"
     scope: ScopeType = "individual"
     rubric: Optional[str] = None
+    rubric_mode: Literal["single", "per_doc"] = "single"
+    rubrics_by_doc_type: Dict[str, str] = Field(default_factory=dict)
 
 
 class CheckResult(BaseModel):

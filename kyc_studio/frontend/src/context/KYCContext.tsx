@@ -4,6 +4,7 @@ import type {
   DocType,
   ExtractedDocument,
   GroundTruth,
+  GroundTruthManifest,
   KYCResult,
   MethodType,
   ScopeType,
@@ -14,6 +15,7 @@ interface KYCContextValue {
   uploads: Partial<Record<DocType, { front?: UploadedDocImage; back?: UploadedDocImage }>>
   extractedDocs: ExtractedDocument[]
   groundTruth: GroundTruth | null
+  groundTruthManifest: GroundTruthManifest | null
   rubricYaml: string
   method: MethodType
   scope: ScopeType
@@ -23,6 +25,7 @@ interface KYCContextValue {
   setUploads: React.Dispatch<React.SetStateAction<Partial<Record<DocType, { front?: UploadedDocImage; back?: UploadedDocImage }>>>>
   setExtractedDocs: React.Dispatch<React.SetStateAction<ExtractedDocument[]>>
   setGroundTruth: React.Dispatch<React.SetStateAction<GroundTruth | null>>
+  setGroundTruthManifest: React.Dispatch<React.SetStateAction<GroundTruthManifest | null>>
   setRubricYaml: React.Dispatch<React.SetStateAction<string>>
   setMethod: React.Dispatch<React.SetStateAction<MethodType>>
   setScope: React.Dispatch<React.SetStateAction<ScopeType>>
@@ -37,6 +40,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const [uploads, setUploads] = useState<Partial<Record<DocType, { front?: UploadedDocImage; back?: UploadedDocImage }>>>({})
   const [extractedDocs, setExtractedDocs] = useState<ExtractedDocument[]>([])
   const [groundTruth, setGroundTruth] = useState<GroundTruth | null>(null)
+  const [groundTruthManifest, setGroundTruthManifest] = useState<GroundTruthManifest | null>(null)
   const [rubricYaml, setRubricYaml] = useState('')
   const [method, setMethod] = useState<MethodType>('rules')
   const [scope, setScope] = useState<ScopeType>('individual')
@@ -49,6 +53,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       uploads,
       extractedDocs,
       groundTruth,
+      groundTruthManifest,
       rubricYaml,
       method,
       scope,
@@ -58,6 +63,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       setUploads,
       setExtractedDocs,
       setGroundTruth,
+      setGroundTruthManifest,
       setRubricYaml,
       setMethod,
       setScope,
@@ -65,7 +71,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       setError,
       setResult,
     }),
-    [uploads, extractedDocs, groundTruth, rubricYaml, method, scope, loading, error, result],
+    [uploads, extractedDocs, groundTruth, groundTruthManifest, rubricYaml, method, scope, loading, error, result],
   )
 
   return <KYCContext.Provider value={value}>{children}</KYCContext.Provider>

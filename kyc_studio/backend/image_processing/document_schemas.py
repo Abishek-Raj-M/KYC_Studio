@@ -10,18 +10,26 @@ import json
 class DocumentSchemaHandler:
     """Handles document schemas and validation dynamically"""
     
-    # Document type keywords for detection
+  # Active KYC document types supported by the application.
     DOCUMENT_KEYWORDS = {
         "passport": ["passport", "travel document", "nationality", "passport no"],
-        "driver_license": ["driver license", "driver's license", "dl no", "license no"],
-        "birth_certificate": ["birth certificate", "certificate of birth", "born on"],
-        "green_card": ["permanent resident", "uscis", "green card", "resident card"],
-        "ssn_card": ["social security", "ssn", "social security number"],
-        "bank_statement": ["bank statement", "account number", "statement period"],
-        "w2": ["form w-2", "wage and tax", "employer's ein"],
-        "utility_bill": ["utility", "electric", "gas", "water", "bill date"],
-        "portrait_photo": ["photo", "portrait", "photograph"]
+    "pan": ["pan", "permanent account number", "income tax department", "pan card"],
+    "aadhaar": ["aadhaar", "uidai", "unique identification", "aadhaar number"],
     }
+
+  # Legacy document families are intentionally kept as commented references only.
+  # They can be restored later if the product scope expands beyond the three
+  # supported Indian KYC document types.
+  # LEGACY_DOCUMENT_KEYWORDS = {
+  #     "driver_license": [...],
+  #     "birth_certificate": [...],
+  #     "green_card": [...],
+  #     "ssn_card": [...],
+  #     "bank_statement": [...],
+  #     "w2": [...],
+  #     "utility_bill": [...],
+  #     "portrait_photo": [...],
+  # }
     
     @staticmethod
     def detect_document_type(text: str) -> str:
@@ -69,59 +77,31 @@ RULES:
   "issuing_country": "string"
 }''',
             
-            "driver_license": '''
+            "pan": '''
 {
-  "document_type": "driver_license",
-  "name": {"first_name": "string", "last_name": "string"},
-  "license_number": "string",
-  "date_of_birth": "YYYY-MM-DD",
-  "sex": "M/F",
-  "height": "string",
-  "weight_lb": "integer or null",
-  "hair_color": "string",
-  "eye_color": "string",
-  "address": {
-    "street": "string",
-    "city": "string",
-    "state": "string",
-    "postal_code": "string"
-  },
-  "issue_date": "YYYY-MM-DD",
-  "expiration_date": "YYYY-MM-DD",
-  "issuing_jurisdiction": "string"
+  "document_type": "pan",
+  "pan_number": "string",
+  "name": "string",
+  "father_name": "string",
+  "dob": "YYYY-MM-DD"
 }''',
-            
-            "birth_certificate": '''
+
+            "aadhaar": '''
 {
-  "document_type": "birth_certificate",
-  "subject": {"full_name": "string"},
-  "birth": {"date": "YYYY-MM-DD", "place": "string"},
-  "parents": {"mother_name": "string", "father_name": "string"},
-  "issuer": {"name": "string"}
+  "document_type": "aadhaar",
+  "aadhaar_number": "string",
+  "name": "string",
+  "dob": "YYYY-MM-DD",
+  "gender": "string",
+  "address": "string",
+  "pincode": "string"
 }''',
-            
-            "green_card": '''
-{
-  "document_type": "permanent_resident_card",
-  "given_name": "string",
-  "surname": "string",
-  "uscis_number": "string",
-  "date_of_birth": "YYYY-MM-DD",
-  "country_of_birth": "string",
-  "sex": "M/F",
-  "resident_since": "YYYY-MM-DD",
-  "card_expires": "YYYY-MM-DD",
-  "category": "string",
-  "issuing_country": "string"
-}''',
-            
-            "ssn_card": '''
-{
-  "document_type": "social_security_card",
-  "name": {"full_name": "string"},
-  "ssn": "XXX-XX-XXXX",
-  "issuing_agency": "Social Security Administration (USA)"
-}''',
+
+            # Legacy prompt schemas kept as comments only for future reuse.
+            # "driver_license": '''...''',
+            # "birth_certificate": '''...''',
+            # "green_card": '''...''',
+            # "ssn_card": '''...''',
             
             "unknown": '''
 {
