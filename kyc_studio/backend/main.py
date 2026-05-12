@@ -19,6 +19,7 @@ if str(LOCAL_IMAGE_PROCESSING) not in sys.path:
 import document_schemas  # noqa: E402
 from ocr_extraction_pipeline import OCRExtractionPipeline  # noqa: E402
 
+from canonical_mapper import normalize_document, normalize_ground_truth
 from document_schemas_ext import ExtendedDocumentSchemaHandler  # noqa: E402
 from kyc_llm_agent import KycLLMAgent  # noqa: E402
 from kyc_rules import RuleBasedKYCEngine  # noqa: E402
@@ -98,8 +99,9 @@ async def extract_documents(
 
 @app.post("/api/evaluate")
 def evaluate_kyc(req: KYCRequest) -> Dict[str, Any]:
-    docs = [item.extracted for item in req.extracted_docs]
-    ground_truth: GroundTruth = req.ground_truth
+    docs = [normalize_document(item.extracted, item.doc_type) for item in req.extracted_docs]
+    normalized_gt = normalize_ground_truth(req.ground_truth.model_dump())
+    ground_truth = GroundTruth(**normalized_gt)
 
     if not docs:
         raise HTTPException(status_code=400, detail="No extracted documents provided")

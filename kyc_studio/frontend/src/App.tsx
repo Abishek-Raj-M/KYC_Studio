@@ -45,6 +45,7 @@ export default function App() {
   } = useKYC()
 
   const [showBack, setShowBack] = useState<Record<DocType, boolean>>({ passport: false, aadhaar: false, pan: false })
+  const [selectedDocs, setSelectedDocs] = useState<DocType[]>(['passport', 'aadhaar', 'pan'])
 
   const extractedByDoc = useMemo(() => {
     const map = new Set(extractedDocs.map((d) => d.doc_type))
@@ -91,11 +92,18 @@ export default function App() {
   }
 
   async function runEvaluation() {
+    if (!selectedDocs.length) {
+      setError('Select at least one document for evaluation')
+      return
+    }
+
+    const activeExtractedDocs = extractedDocs.filter((d) => selectedDocs.includes(d.doc_type))
+
     if (!groundTruth) {
       setError('Ground truth JSON is required')
       return
     }
-    if (!extractedDocs.length) {
+    if (!activeExtractedDocs.length) {
       setError('Upload and extract at least one document first')
       return
     }
@@ -108,7 +116,7 @@ export default function App() {
       setError(null)
       setLoading(true)
       const response = await evaluateKyc({
-        extracted_docs: extractedDocs,
+        extracted_docs: activeExtractedDocs,
         ground_truth: groundTruth,
         method,
         scope,
@@ -133,6 +141,26 @@ export default function App() {
     return [{ label: method.toUpperCase(), data: result as KYCResult }]
   }, [result, method])
 
+  function toggleSelectedDoc(docType: DocType) {
+    setSelectedDocs((prev) => {
+      const next = prev.includes(docType) ? prev.filter((d) => d !== docType) : [...prev, docType]
+
+      if (prev.includes(docType)) {
+        setUploads((current) => {
+          const updated = { ...current }
+          delete updated[docType]
+          return updated
+        })
+        setExtractedDocs((current) => current.filter((d) => d.doc_type !== docType))
+        setShowBack((current) => ({ ...current, [docType]: false }))
+        setResult(null)
+        setError(null)
+      }
+
+      return next
+    })
+  }
+
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <header className="surface-glass flex h-12 shrink-0 items-center justify-between border-b border-border bg-raised px-4 shadow-panel">
@@ -144,7 +172,28 @@ export default function App() {
 
       <main className="flex min-h-0 flex-1 gap-3 p-3">
         <aside className="flex min-h-0 w-[38%] flex-col gap-3 overflow-y-auto pr-1">
-          {DOCS.map((doc) => (
+          <section className="surface-glass rounded-2xl border border-border bg-panel p-3 shadow-card">
+            <h3 className="mb-2 font-heading text-sm font-semibold">Choose Documents For Evaluation</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {DOCS.map((doc) => {
+                const active = selectedDocs.includes(doc.type)
+                return (
+                  <button
+                    key={doc.type}
+                    type="button"
+                    onClick={() => toggleSelectedDoc(doc.type)}
+                    className={`rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                      active ? 'border-link bg-brand text-white' : 'border-border bg-panel-muted text-fg-muted hover:bg-panel'
+                    }`}
+                  >
+                    {doc.title}
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
+          {DOCS.filter((doc) => selectedDocs.includes(doc.type)).map((doc) => (
             <DocumentUploadCard
               key={doc.type}
               docType={doc.type}
@@ -157,6 +206,12 @@ export default function App() {
               onFileDrop={handleFileDrop}
             />
           ))}
+
+          {!selectedDocs.length ? (
+            <div className="surface-glass rounded-2xl border border-border bg-panel p-3 text-xs text-fg-muted shadow-card">
+              No documents selected. Choose at least one document type above.
+            </div>
+          ) : null}
 
           <GroundTruthUpload data={groundTruth} onParsed={setGroundTruth} />
           <EvaluationConfig method={method} scope={scope} onMethod={setMethod} onScope={setScope} />
