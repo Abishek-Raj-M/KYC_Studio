@@ -1,0 +1,12 @@
+{
+  "name": "Sample User",
+  "dob": "1995-08-12",
+  "gender": "M",
+  "address": "Sample address line",
+  "nationality": "Indian",
+  "id_numbers": {
+    "passport": "P1234567",
+    "aadhaar": "123412341234",
+    "pan": "ABCDE1234F"
+  }
+}

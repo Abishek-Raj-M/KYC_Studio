@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-page: #eef1f8;
+  --color-raised: rgba(255, 255, 255, 0.55);
+  --color-panel: rgba(255, 255, 255, 0.46);
+  --color-panel-muted: rgba(255, 255, 255, 0.36);
+  --color-border: rgb(0 0 0 / 0.09);
+  --color-fg: #050505;
+  --color-fg-muted: #4d4d4d;
+  --link-color: #0a79b8;
+  --focus-ring-outer: rgb(10 121 184 / 0.45);
+  --brand-solid: #0a79b8;
+  --surface-backdrop: saturate(165%) blur(14px);
+  --shadow-panel: 0 10px 40px rgba(8, 28, 52, 0.12);
+  --shadow-card: 0 6px 28px rgba(8, 28, 52, 0.1);
+  --page-mesh: radial-gradient(42% 35% at 8% 10%, rgba(4, 145, 138, 0.16), transparent 72%),
+    radial-gradient(35% 30% at 89% 16%, rgba(0, 122, 255, 0.2), transparent 66%),
+    radial-gradient(42% 38% at 48% 90%, rgba(255, 147, 68, 0.16), transparent 74%);
+}
+
+.dark {
+  --color-page: #050505;
+  --color-raised: rgba(255, 255, 255, 0.04);
+  --color-panel: rgba(255, 255, 255, 0.06);
+  --color-panel-muted: rgba(255, 255, 255, 0.08);
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-fg: #ffffff;
+  --color-fg-muted: #d8d8d8;
+  --link-color: #14d0d5;
+  --focus-ring-outer: rgb(20 208 213 / 0.4);
+  --brand-solid: #14d0d5;
+  --surface-backdrop: saturate(150%) blur(18px);
+  --shadow-panel: 0 12px 42px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.32);
+  --page-mesh: radial-gradient(42% 35% at 8% 10%, rgba(2, 162, 153, 0.12), transparent 72%),
+    radial-gradient(35% 30% at 89% 16%, rgba(0, 122, 255, 0.13), transparent 66%),
+    radial-gradient(42% 38% at 48% 90%, rgba(255, 147, 68, 0.09), transparent 74%);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+html,
+body {
+  background-color: var(--color-page);
+  color: var(--color-fg);
+}
+
+body {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: -12%;
+  background: var(--page-mesh);
+  filter: blur(62px);
+  z-index: 0;
+  pointer-events: none;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+.surface-glass {
+  -webkit-backdrop-filter: var(--surface-backdrop);
+  backdrop-filter: var(--surface-backdrop);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  .dark {
+    --surface-backdrop: none;
+  }
+}

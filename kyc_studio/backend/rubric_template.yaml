@@ -1,0 +1,23 @@
+rubric_version: "1.0"
+name: "KYC Rubric"
+checks:
+  - id: name_match
+    description: "Full name matches ground truth"
+    weight: 0.30
+    criteria: "Use fuzzy match. Accept if similarity >= 0.85"
+  - id: dob_match
+    description: "Date of birth matches"
+    weight: 0.25
+    criteria: "Exact date match required (YYYY-MM-DD)"
+  - id: document_validity
+    description: "Documents are not expired"
+    weight: 0.20
+    criteria: "Check expiration dates where applicable"
+  - id: format_validation
+    description: "Document numbers conform to known formats"
+    weight: 0.15
+    criteria: "PAN: 5 letters + 4 digits + 1 letter. Aadhaar: 12 digits"
+  - id: cross_doc_consistency
+    description: "Name and DOB consistent across all submitted documents"
+    weight: 0.10
+    criteria: "All docs must agree within fuzzy threshold"

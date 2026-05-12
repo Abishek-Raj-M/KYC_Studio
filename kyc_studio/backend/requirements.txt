@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+python-dotenv
+pytesseract
+opencv-python-headless
+pillow
+numpy
+openai
+requests
+rapidfuzz
+pyyaml
