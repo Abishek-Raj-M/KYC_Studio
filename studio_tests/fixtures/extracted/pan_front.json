@@ -1,0 +1,14 @@
+{
+  "doc_type": "pan",
+  "side": "front",
+  "filename": "pan_front_clean.jpg",
+  "extracted": {
+    "document_type": "pan",
+    "pan_number": "DVXRS2424S",
+    "name": "RAJESH SHARMA",
+    "father_name": "SURESH SHARMA",
+    "dob": "21/07/1987",
+    "gender": "Male",
+    "_metadata": { "source_file": "pan_front_clean.jpg" }
+  }
+}

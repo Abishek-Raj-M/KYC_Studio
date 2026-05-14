@@ -1,0 +1,23 @@
+rubric_version: "1.0"
+name: "Indian Passport KYC Rubric"
+checks:
+  - id: passport_name_match
+    description: "Given name and surname match ground truth"
+    weight: 0.25
+    criteria: "Combined name fuzzy match >= 0.85"
+  - id: passport_dob_match
+    description: "Passport DOB matches ground truth"
+    weight: 0.20
+    criteria: "Exact date match after normalization"
+  - id: passport_number_present
+    description: "Passport number is present"
+    weight: 0.20
+    criteria: "passport_number field should be non-empty"
+  - id: passport_expiry_valid
+    description: "Passport is not expired"
+    weight: 0.20
+    criteria: "date_of_expiry/date_of_expiration should be later than current date"
+  - id: passport_core_fields
+    description: "Core identity fields are complete"
+    weight: 0.15
+    criteria: "given_name/given_names, surname, nationality, dob are present"

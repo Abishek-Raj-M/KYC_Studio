@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Loader2, ShieldCheck } from 'lucide-react'
 import { DocumentUploadCard } from './components/DocumentUploadCard'
 import { EvaluationConfig } from './components/EvaluationConfig'
@@ -50,6 +50,19 @@ export default function App() {
   const [selectedDocs, setSelectedDocs] = useState<DocType[]>([])
   const [rubricMode, setRubricMode] = useState<RubricMode>('single')
   const [rubricsByDocType, setRubricsByDocType] = useState<Partial<Record<DocType, string>>>({})
+  const evalConfigRef = useRef({ method, scope, rubricMode })
+
+  useEffect(() => {
+    const prev = evalConfigRef.current
+    if (
+      result != null &&
+      (prev.method !== method || prev.scope !== scope || prev.rubricMode !== rubricMode)
+    ) {
+      setResult(null)
+      setError(null)
+    }
+    evalConfigRef.current = { method, scope, rubricMode }
+  }, [method, scope, rubricMode, result, setResult, setError])
 
   const extractedByDoc = useMemo(() => {
     const map = new Set(extractedDocs.map((d) => d.doc_type))

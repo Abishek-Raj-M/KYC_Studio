@@ -1,0 +1,11 @@
+{
+  "name": "kyc-studio-e2e",
+  "private": true,
+  "scripts": {
+    "test": "playwright test -c playwright.config.cjs",
+    "test:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

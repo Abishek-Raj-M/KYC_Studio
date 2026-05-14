@@ -159,12 +159,12 @@ def evaluate_kyc(req: KYCRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="No extracted documents provided")
 
     engine = RuleBasedKYCEngine()
-    llm_agent = KycLLMAgent()
 
     def run_llm_with_rubrics() -> KYCResult:
         if req.rubric_mode == "single":
             if not req.rubric:
                 raise HTTPException(status_code=400, detail="rubric YAML is required for llm mode")
+            llm_agent = KycLLMAgent()
             return llm_agent.evaluate(
                 docs=docs,
                 ground_truth=ground_truth.model_dump(),
@@ -179,16 +179,20 @@ def evaluate_kyc(req: KYCRequest) -> Dict[str, Any]:
             raise HTTPException(status_code=400, detail="rubrics_by_doc_type is required when rubric_mode=per_doc")
 
         alias_map = {"pan_card": "pan", "pancard": "pan", "aadhar": "aadhaar"}
-        doc_results = []
-        all_checks: List[CheckResult] = []
-
+        per_doc_pairs: List[tuple[Dict[str, Any], str, str]] = []
         for doc in docs:
             doc_type = str(doc.get("document_type") or "unknown").lower().strip()
             canonical = alias_map.get(doc_type, doc_type)
             rubric_yaml = rubric_map.get(canonical) or rubric_map.get(doc_type)
             if not rubric_yaml:
                 raise HTTPException(status_code=400, detail=f"Missing rubric for document type: {doc_type}")
+            per_doc_pairs.append((doc, rubric_yaml, doc_type))
 
+        llm_agent = KycLLMAgent()
+        doc_results = []
+        all_checks: List[CheckResult] = []
+
+        for doc, rubric_yaml, doc_type in per_doc_pairs:
             single_result = llm_agent.evaluate(
                 docs=[doc],
                 ground_truth=ground_truth.model_dump(),

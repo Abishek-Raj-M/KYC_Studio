@@ -1,0 +1,51 @@
+{
+  "person": {
+    "name": "RAJESH SHARMA",
+    "dob": "21/07/1987",
+    "nationality": "INDIAN",
+    "gender": "male"
+  },
+  "documents": {
+    "passport": {
+      "fields": {
+        "surname": "SHARMA",
+        "given_name": "RAJESH",
+        "nationality": "INDIAN",
+        "sex": "M",
+        "date_of_birth": "21/07/1987",
+        "place_of_birth": "MUMBAI",
+        "father_name": "SURESH SHARMA",
+        "mother_name": "MOTHER SHARMA",
+        "passport_number": "I5108603",
+        "date_of_issue": "24/01/2008",
+        "date_of_expiry": "24/01/2018",
+        "place_of_issue": "MUMBAI",
+        "signature_name": "Rajesh Sharma"
+      }
+    },
+    "pan_card": {
+      "fields": {
+        "name": "RAJESH SHARMA",
+        "father_name": "SURESH SHARMA",
+        "dob": "21/07/1987",
+        "pan": "DVXRS2424S",
+        "gender": "Male",
+        "signature_name": "Rajesh Sharma",
+        "issue_date": "24/03/2012"
+      }
+    },
+    "aadhaar": {
+      "fields": {
+        "name": "RAJESH SHARMA",
+        "dob": "21/07/1987",
+        "gender": "MALE",
+        "aadhaar": "276745824811",
+        "address": "42 Mahatma Gandhi Road, Andheri West, Mumbai",
+        "city": "MUMBAI",
+        "state": "Maharashtra",
+        "pincode": "400058",
+        "issue_date": "01/01/2018"
+      }
+    }
+  }
+}

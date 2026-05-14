@@ -1,0 +1,15 @@
+{
+  "doc_type": "aadhaar",
+  "side": "front",
+  "filename": "aadhaar_front_clean.jpg",
+  "extracted": {
+    "document_type": "aadhaar",
+    "aadhaar_number": "276745824811",
+    "name": "RAJESH SHARMA",
+    "dob": "21/07/1987",
+    "gender": "MALE",
+    "address": "42 Mahatma Gandhi Road, Andheri West, Mumbai",
+    "pincode": "400058",
+    "_metadata": { "source_file": "aadhaar_front_clean.jpg" }
+  }
+}

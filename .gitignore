@@ -1,0 +1,6 @@
+# Studio tests
+studio_tests/e2e/node_modules/
+studio_tests/e2e/test-results/
+studio_tests/e2e/playwright-report/
+studio_tests/api/.pytest_cache/
+studio_tests/api/__pycache__/
