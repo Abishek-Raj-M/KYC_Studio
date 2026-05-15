@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 import yaml
 from openai import AzureOpenAI
 
+from check_scoping import checks_for_document_card, score_from_checks
 from models import CheckResult, DocumentKYCResult, FieldMatch, KYCResult
 
 
@@ -72,24 +73,36 @@ class KycLLMAgent:
         payload = self._parse_llm_json(content)
         logger.info("LLM parsed payload=%s", payload)
         check_results = self._check_results_from_payload(checks, payload)
+        multi_document = len(docs) > 1
 
-        per_doc_results = [
-            DocumentKYCResult(
-                document_id=str(d.get("_metadata", {}).get("source_file") or d.get("document_type") or "document"),
-                doc_type=str(d.get("document_type") or "unknown"),
-                score=0.0,
-                passed=False,
-                checks=check_results,
-                field_matches=self._field_matches_for_doc(d, ground_truth_manifest or ground_truth),
-            )
-            for d in docs
-        ]
-
+        per_doc_results: List[DocumentKYCResult] = []
         mandatory_failures: List[str] = []
-        for doc in per_doc_results:
-            for fm in doc.field_matches:
+        for d in docs:
+            doc_id = str(d.get("_metadata", {}).get("source_file") or d.get("document_type") or "document")
+            doc_type = str(d.get("document_type") or "unknown")
+            field_matches = self._field_matches_for_doc(d, ground_truth_manifest or ground_truth)
+            for fm in field_matches:
                 if fm.status != "match":
-                    mandatory_failures.append(f"{doc.doc_type}.{fm.field} ({fm.status})")
+                    mandatory_failures.append(f"{doc_type}.{fm.field} ({fm.status})")
+
+            doc_checks = checks_for_document_card(
+                check_results,
+                doc_type,
+                field_matches,
+                is_rubric=True,
+                multi_document=multi_document,
+            )
+            doc_score = score_from_checks(doc_checks)
+            per_doc_results.append(
+                DocumentKYCResult(
+                    document_id=doc_id,
+                    doc_type=doc_type,
+                    score=doc_score,
+                    passed=doc_score >= 75,
+                    checks=doc_checks,
+                    field_matches=field_matches,
+                )
+            )
 
         mandatory_passed = not mandatory_failures
         check_results.append(
@@ -102,14 +115,7 @@ class KycLLMAgent:
             )
         )
 
-        total_weight = sum(c.weight for c in check_results) or 1.0
-        passed_weight = sum(c.weight for c in check_results if c.passed)
-        overall = (passed_weight / total_weight) * 100
-
-        for doc in per_doc_results:
-            doc.score = round(overall, 2)
-            doc.passed = overall >= 75
-            doc.checks = check_results
+        overall = score_from_checks(check_results)
 
         return KYCResult(
             method="llm",

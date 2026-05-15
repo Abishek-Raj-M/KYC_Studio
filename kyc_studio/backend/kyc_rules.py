@@ -6,6 +6,7 @@ from datetime import datetime
 from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
+from check_scoping import checks_for_document_card, score_from_checks
 from models import CheckResult, DocumentKYCResult, FieldMatch, GroundTruth, KYCResult
 
 
@@ -285,21 +286,29 @@ class RuleBasedKYCEngine:
         field_matches: Dict[str, List[FieldMatch]],
     ) -> List[DocumentKYCResult]:
         shared_checks = [c.to_model() for c in checks]
-        active_total_weight = sum(c.weight for c in checks)
-        passed_weight = sum(c.weight for c in checks if c.passed)
-        score = passed_weight / active_total_weight * 100 if active_total_weight else 0.0
+        multi_document = len(docs) > 1
 
         results: List[DocumentKYCResult] = []
         for doc in docs:
             doc_id = str(doc.get("_metadata", {}).get("source_file") or doc.get("document_type") or "document")
+            doc_type = str(doc.get("document_type") or "unknown")
+            doc_field_matches = field_matches.get(doc_id, [])
+            doc_checks = checks_for_document_card(
+                shared_checks,
+                doc_type,
+                doc_field_matches,
+                is_rubric=False,
+                multi_document=multi_document,
+            )
+            doc_score = score_from_checks(doc_checks)
             results.append(
                 DocumentKYCResult(
                     document_id=doc_id,
-                    doc_type=str(doc.get("document_type") or "unknown"),
-                    score=round(score, 2),
-                    passed=score >= 75,
-                    checks=shared_checks,
-                    field_matches=field_matches.get(doc_id, []),
+                    doc_type=doc_type,
+                    score=doc_score,
+                    passed=doc_score >= 75,
+                    checks=doc_checks,
+                    field_matches=doc_field_matches,
                 )
             )
 
