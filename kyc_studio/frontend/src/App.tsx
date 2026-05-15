@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AlertCircle, Loader2, ShieldCheck } from 'lucide-react'
 import { DocumentUploadCard } from './components/DocumentUploadCard'
 import { EvaluationConfig } from './components/EvaluationConfig'
@@ -9,7 +9,7 @@ import { DocumentResultCard } from './components/ResultsPanel/DocumentResultCard
 import { EvaluationModeBadge } from './components/ResultsPanel/EvaluationModeBadge'
 import { OverallScoreCard } from './components/ResultsPanel/OverallScoreCard'
 import { evaluateKyc, extractDocs } from './lib/api'
-import type { BothResultEnvelope, DocType, GroundTruthManifest, KYCResult, RubricMode, Side } from './lib/types'
+import type { BothResultEnvelope, DocType, GroundTruthManifest, KYCResult, MethodType, RubricMode, ScopeType, Side } from './lib/types'
 import { useKYC } from './context/KYCContext'
 
 const DOCS: { type: DocType; title: string }[] = [
@@ -50,19 +50,26 @@ export default function App() {
   const [selectedDocs, setSelectedDocs] = useState<DocType[]>([])
   const [rubricMode, setRubricMode] = useState<RubricMode>('single')
   const [rubricsByDocType, setRubricsByDocType] = useState<Partial<Record<DocType, string>>>({})
-  const evalConfigRef = useRef({ method, scope, rubricMode })
 
-  useEffect(() => {
-    const prev = evalConfigRef.current
-    if (
-      result != null &&
-      (prev.method !== method || prev.scope !== scope || prev.rubricMode !== rubricMode)
-    ) {
-      setResult(null)
-      setError(null)
-    }
-    evalConfigRef.current = { method, scope, rubricMode }
-  }, [method, scope, rubricMode, result, setResult, setError])
+  function clearStaleResults() {
+    setResult(null)
+    setError(null)
+  }
+
+  function changeMethod(next: MethodType) {
+    if (next !== method) clearStaleResults()
+    setMethod(next)
+  }
+
+  function changeScope(next: ScopeType) {
+    if (next !== scope) clearStaleResults()
+    setScope(next)
+  }
+
+  function changeRubricMode(next: RubricMode) {
+    if (next !== rubricMode) clearStaleResults()
+    setRubricMode(next)
+  }
 
   const extractedByDoc = useMemo(() => {
     const map = new Set(extractedDocs.map((d) => d.doc_type))
@@ -161,13 +168,24 @@ export default function App() {
     }
   }
 
-  const resultSections: { label: string; data: KYCResult }[] = useMemo(() => {
-    if (!result) return []
+  const resultDisplay = useMemo(() => {
+    if (!result) return null
     if (isBoth(result)) {
-      return [{ label: 'Combined Evaluation', data: result.combined_result }]
+      return {
+        scope: result.scope,
+        method: 'both' as const,
+        envelope: result,
+        sections: [{ label: 'Combined Evaluation', data: result.combined_result }],
+      }
     }
-    return [{ label: method.toUpperCase(), data: result as KYCResult }]
-  }, [result, method])
+    const single = result as KYCResult
+    return {
+      scope: single.scope,
+      method: single.method,
+      envelope: null,
+      sections: [{ label: single.method.toUpperCase(), data: single }],
+    }
+  }, [result])
 
   const canRunKyc = Boolean(groundTruth) && !loading
 
@@ -250,16 +268,22 @@ export default function App() {
           ) : null}
 
           <GroundTruthUpload data={groundTruth} manifest={groundTruthManifest} onParsed={setGroundTruth} onParsedManifest={setGroundTruthManifest} />
-          <EvaluationConfig method={method} scope={scope} onMethod={setMethod} onScope={setScope} />
+          <EvaluationConfig method={method} scope={scope} onMethod={changeMethod} onScope={changeScope} />
           {(method === 'llm' || method === 'both') ? (
             <RubricUpload
               selectedDocs={selectedDocs}
               rubricMode={rubricMode}
               value={rubricYaml}
               byDocType={rubricsByDocType}
-              onRubricModeChange={setRubricMode}
-              onParsed={setRubricYaml}
-              onParsedForDocType={(docType, yaml) => setRubricsByDocType((prev) => ({ ...prev, [docType]: yaml }))}
+              onRubricModeChange={changeRubricMode}
+              onParsed={(yaml) => {
+                clearStaleResults()
+                setRubricYaml(yaml)
+              }}
+              onParsedForDocType={(docType, yaml) => {
+                clearStaleResults()
+                setRubricsByDocType((prev) => ({ ...prev, [docType]: yaml }))
+              }}
             />
           ) : null}
 
@@ -282,42 +306,42 @@ export default function App() {
         </aside>
 
         <section className="flex min-h-0 w-[62%] flex-col gap-3 overflow-y-auto pl-1">
-          {!result ? (
+          {!resultDisplay ? (
             <div className="surface-glass flex h-full items-center justify-center rounded-2xl border border-border bg-panel text-fg-muted">
               Results will appear after running KYC.
             </div>
           ) : (
-            <div className={`grid gap-3 ${resultSections.length > 1 ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
-              {resultSections.map((section) => (
+            <div className={`grid gap-3 ${resultDisplay.sections.length > 1 ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
+              {resultDisplay.sections.map((section) => (
                 <div key={section.label} className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h2 className="font-heading text-lg font-semibold">{section.label}</h2>
-                    <EvaluationModeBadge mode={section.data.method} />
+                    <EvaluationModeBadge mode={resultDisplay.method} />
                   </div>
 
                   <OverallScoreCard score={section.data.overall_score} passed={section.data.passed} />
 
-                  {isBoth(result) ? (
+                  {resultDisplay.method === 'both' && resultDisplay.envelope ? (
                     <div className="surface-glass rounded-2xl border border-border bg-panel p-3 shadow-card">
                       <div className="mb-2 text-sm font-semibold">Score Breakdown</div>
                       <div className="grid gap-2 text-xs md:grid-cols-2">
                         <div className="rounded-lg border border-border bg-panel-muted p-2">
                           <div className="text-fg-muted">Rules Weight</div>
-                          <div className="font-semibold">{(result.score_breakdown.rules_weight * 100).toFixed(0)}%</div>
-                          <div className="mt-1 text-fg-muted">Rules Score: {result.score_breakdown.rules_score.toFixed(2)}%</div>
-                          <div className="text-fg-muted">Contribution: {result.score_breakdown.rules_contribution.toFixed(2)}%</div>
+                          <div className="font-semibold">{(resultDisplay.envelope.score_breakdown.rules_weight * 100).toFixed(0)}%</div>
+                          <div className="mt-1 text-fg-muted">Rules Score: {resultDisplay.envelope.score_breakdown.rules_score.toFixed(2)}%</div>
+                          <div className="text-fg-muted">Contribution: {resultDisplay.envelope.score_breakdown.rules_contribution.toFixed(2)}%</div>
                         </div>
                         <div className="rounded-lg border border-border bg-panel-muted p-2">
                           <div className="text-fg-muted">Rubric Weight</div>
-                          <div className="font-semibold">{(result.score_breakdown.rubric_weight * 100).toFixed(0)}%</div>
-                          <div className="mt-1 text-fg-muted">Rubric Score: {result.score_breakdown.rubric_score.toFixed(2)}%</div>
-                          <div className="text-fg-muted">Contribution: {result.score_breakdown.rubric_contribution.toFixed(2)}%</div>
+                          <div className="font-semibold">{(resultDisplay.envelope.score_breakdown.rubric_weight * 100).toFixed(0)}%</div>
+                          <div className="mt-1 text-fg-muted">Rubric Score: {resultDisplay.envelope.score_breakdown.rubric_score.toFixed(2)}%</div>
+                          <div className="text-fg-muted">Contribution: {resultDisplay.envelope.score_breakdown.rubric_contribution.toFixed(2)}%</div>
                         </div>
                       </div>
                     </div>
                   ) : null}
 
-                  {scope === 'individual' || isBoth(result) ? (
+                  {resultDisplay.scope === 'individual' || resultDisplay.method === 'both' ? (
                     <div className="space-y-2">
                       {section.data.per_document_results.map((doc) => (
                         <DocumentResultCard key={`${section.label}-${doc.document_id}`} result={doc} />

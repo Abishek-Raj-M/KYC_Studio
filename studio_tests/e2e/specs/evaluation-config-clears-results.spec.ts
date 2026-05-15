@@ -86,3 +86,74 @@ test('changing scope after a run clears results until Run KYC (mocked APIs)', as
   await page.getByRole('button', { name: 'All Together' }).click()
   await expect(page.getByText('Results will appear after running KYC.')).toBeVisible()
 })
+
+test('changing method after a run clears results until Run KYC (mocked APIs)', async ({ page, request }) => {
+  test.skip(!(await frontendReachable(request)), 'Frontend not reachable at baseURL')
+
+  await page.route('**/api/extract', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ documents: [panDoc] }),
+    })
+  })
+
+  await page.route('**/api/evaluate', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        result: {
+          method: 'both',
+          scope: 'individual',
+          overall_score: 30.3,
+          passed: false,
+          summary: 'mock',
+          score_breakdown: {
+            rules_weight: 0.5,
+            rubric_weight: 0.5,
+            rules_score: 32.61,
+            rubric_score: 28,
+            rules_contribution: 16.3,
+            rubric_contribution: 14,
+          },
+          combined_result: {
+            method: 'both',
+            scope: 'individual',
+            overall_score: 30.3,
+            passed: false,
+            summary: 'mock',
+            per_document_results: [
+              {
+                document_id: 'pan_front_clean.jpg',
+                doc_type: 'pan',
+                score: 30.3,
+                passed: false,
+                checks: [],
+                field_matches: [],
+              },
+            ],
+            checks: [],
+          },
+        },
+      }),
+    })
+  })
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'PAN' }).click()
+  await page.locator('section').filter({ hasText: 'Ground Truth' }).locator('input[type="file"]').setInputFiles(manifestPath)
+  await page.locator('section').filter({ hasText: 'Front (Required)' }).locator('input[type="file"]').setInputFiles({
+    name: 'pan.png',
+    mimeType: 'image/png',
+    buffer: tinyPng,
+  })
+  await expect(page.getByText('Extracted').first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Run KYC' }).click()
+  await expect(page.getByText('30.30%')).toBeVisible()
+
+  await page.getByRole('button', { name: 'LLM Rubric' }).click()
+  await expect(page.getByText('Results will appear after running KYC.')).toBeVisible()
+  await expect(page.getByText('30.30%')).not.toBeVisible()
+})
