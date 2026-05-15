@@ -80,6 +80,51 @@ export default function App() {
     }
   }, [extractedDocs])
 
+  function clearDocumentImage(docType: DocType, side: Side) {
+    clearStaleResults()
+    setUploads((prev) => {
+      const existing = prev[docType]
+      if (!existing?.[side]) return prev
+
+      const image = existing[side]
+      if (image?.previewUrl) URL.revokeObjectURL(image.previewUrl)
+
+      const updated = { ...existing }
+      delete updated[side]
+
+      if (!updated.front && !updated.back) {
+        const next = { ...prev }
+        delete next[docType]
+        return next
+      }
+      return { ...prev, [docType]: updated }
+    })
+    setExtractedDocs((prev) => prev.filter((d) => !(d.doc_type === docType && d.side === side)))
+    if (side === 'back') {
+      setShowBack((prev) => ({ ...prev, [docType]: false }))
+    }
+  }
+
+  function clearGroundTruth() {
+    clearStaleResults()
+    setGroundTruth(null)
+    setGroundTruthManifest(null)
+  }
+
+  function clearRubric() {
+    clearStaleResults()
+    setRubricYaml('')
+  }
+
+  function clearRubricForDoc(docType: DocType) {
+    clearStaleResults()
+    setRubricsByDocType((prev) => {
+      const next = { ...prev }
+      delete next[docType]
+      return next
+    })
+  }
+
   async function handleFileDrop(file: File, docType: DocType, side: Side) {
     setError(null)
     const previewUrl = URL.createObjectURL(file)
@@ -258,6 +303,7 @@ export default function App() {
               showBack={showBack[doc.type]}
               onToggleBack={() => setShowBack((prev) => ({ ...prev, [doc.type]: true }))}
               onFileDrop={handleFileDrop}
+              onClearImage={clearDocumentImage}
             />
           ))}
 
@@ -267,7 +313,13 @@ export default function App() {
             </div>
           ) : null}
 
-          <GroundTruthUpload data={groundTruth} manifest={groundTruthManifest} onParsed={setGroundTruth} onParsedManifest={setGroundTruthManifest} />
+          <GroundTruthUpload
+            data={groundTruth}
+            manifest={groundTruthManifest}
+            onParsed={setGroundTruth}
+            onParsedManifest={setGroundTruthManifest}
+            onClear={clearGroundTruth}
+          />
           <EvaluationConfig method={method} scope={scope} onMethod={changeMethod} onScope={changeScope} />
           {(method === 'llm' || method === 'both') ? (
             <RubricUpload
@@ -284,6 +336,8 @@ export default function App() {
                 clearStaleResults()
                 setRubricsByDocType((prev) => ({ ...prev, [docType]: yaml }))
               }}
+              onClear={clearRubric}
+              onClearForDocType={clearRubricForDoc}
             />
           ) : null}
 

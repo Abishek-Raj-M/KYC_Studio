@@ -1,6 +1,7 @@
 import { CheckCircle2, FileImage, PlusCircle, Scan } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { useState } from 'react'
+import { ClearUploadButton } from './ClearUploadButton'
 import type { DocType, Side, UploadedDocImage } from '../lib/types'
 
 interface DocumentUploadCardProps {
@@ -13,6 +14,7 @@ interface DocumentUploadCardProps {
   showBack: boolean
   onToggleBack: () => void
   onFileDrop: (file: File, docType: DocType, side: Side) => void
+  onClearImage: (docType: DocType, side: Side) => void
 }
 
 function formatValue(value: unknown): string {
@@ -27,12 +29,14 @@ function UploadZone({
   side,
   image,
   onFileDrop,
+  onClearImage,
 }: {
   label: string
   docType: DocType
   side: Side
   image?: UploadedDocImage
   onFileDrop: (file: File, docType: DocType, side: Side) => void
+  onClearImage: (docType: DocType, side: Side) => void
 }) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     maxFiles: 1,
@@ -50,9 +54,12 @@ function UploadZone({
       }`}
     >
       <input {...getInputProps()} />
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">
-        <Scan className="h-3.5 w-3.5" />
-        {label}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">
+          <Scan className="h-3.5 w-3.5" />
+          {label}
+        </div>
+        {image ? <ClearUploadButton onClick={() => onClearImage(docType, side)} /> : null}
       </div>
       {image ? (
         <img src={image.previewUrl} alt={`${docType}-${side}`} className="h-24 w-full rounded-lg object-cover" />
@@ -66,7 +73,7 @@ function UploadZone({
 }
 
 export function DocumentUploadCard(props: DocumentUploadCardProps) {
-  const { docType, title, front, back, extracted, extractedData, showBack, onToggleBack, onFileDrop } = props
+  const { docType, title, front, back, extracted, extractedData, showBack, onToggleBack, onFileDrop, onClearImage } = props
   const [showExtractedData, setShowExtractedData] = useState(false)
 
   const previewFields = Object.entries(extractedData || {})
@@ -117,7 +124,14 @@ export function DocumentUploadCard(props: DocumentUploadCardProps) {
       ) : null}
 
       <div className="space-y-3">
-        <UploadZone label="Front (Required)" docType={docType} side="front" image={front} onFileDrop={onFileDrop} />
+        <UploadZone
+          label="Front (Required)"
+          docType={docType}
+          side="front"
+          image={front}
+          onFileDrop={onFileDrop}
+          onClearImage={onClearImage}
+        />
 
         {!showBack ? (
           <button
@@ -129,7 +143,14 @@ export function DocumentUploadCard(props: DocumentUploadCardProps) {
             Add back side
           </button>
         ) : (
-          <UploadZone label="Back (Optional)" docType={docType} side="back" image={back} onFileDrop={onFileDrop} />
+          <UploadZone
+            label="Back (Optional)"
+            docType={docType}
+            side="back"
+            image={back}
+            onFileDrop={onFileDrop}
+            onClearImage={onClearImage}
+          />
         )}
       </div>
     </section>

@@ -30,6 +30,9 @@ ragas_data/
 node_modules/
 .cache/
 *.local
+*.tsbuildinfo
+vite.config.d.ts
+vite.config.js
 
 # OS
 .DS_Store

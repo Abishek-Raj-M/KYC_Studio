@@ -1,7 +1,8 @@
 import { useDropzone } from 'react-dropzone'
 import { ChevronDown, ChevronUp, Download, FileCode2 } from 'lucide-react'
 import { downloadRubricTemplate } from '../lib/api'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { ClearUploadButton } from './ClearUploadButton'
 import type { DocType, RubricMode } from '../lib/types'
 
 interface Props {
@@ -12,19 +13,27 @@ interface Props {
   onRubricModeChange: (mode: RubricMode) => void
   onParsed: (yaml: string) => void
   onParsedForDocType: (docType: DocType, yaml: string) => void
+  onClear: () => void
+  onClearForDocType: (docType: DocType) => void
 }
 
 function UploadZone({
   label,
   value,
   onParsed,
+  onClear,
 }: {
   label: string
   value: string
   onParsed: (yaml: string) => void
+  onClear: () => void
 }) {
   const [showRubricData, setShowRubricData] = useState(false)
   const [uploadedFileName, setUploadedFileName] = useState('')
+
+  useEffect(() => {
+    if (!value) setUploadedFileName('')
+  }, [value])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     maxFiles: 1,
@@ -50,11 +59,13 @@ function UploadZone({
         }`}
       >
         <input {...getInputProps()} />
-        {uploadedFileName ? uploadedFileName : 'Upload or drop rubric'}
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate">{uploadedFileName || (value ? 'Rubric loaded' : 'Upload or drop rubric')}</span>
+          {value || uploadedFileName ? <ClearUploadButton onClick={onClear} /> : null}
+        </div>
       </div>
-      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-fg-muted">
-        <p className="truncate">{value ? uploadedFileName || 'Rubric loaded' : 'No rubric loaded'}</p>
-        {value ? (
+      {value ? (
+        <div className="mt-1 flex items-center justify-end gap-2 text-xs text-fg-muted">
           <button
             type="button"
             onClick={() => setShowRubricData((prev) => !prev)}
@@ -63,8 +74,8 @@ function UploadZone({
             {showRubricData ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             {showRubricData ? 'Hide' : 'Show'}
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       {value && showRubricData ? (
         <div className="mt-2 rounded-xl border border-border bg-page/40 p-2 text-xs text-fg-muted">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide">Full Uploaded Rubric</div>
@@ -85,6 +96,8 @@ export function RubricUpload({
   onRubricModeChange,
   onParsed,
   onParsedForDocType,
+  onClear,
+  onClearForDocType,
 }: Props) {
 
   return (
@@ -121,7 +134,7 @@ export function RubricUpload({
       </div>
 
       {rubricMode === 'single' ? (
-        <UploadZone label="Common Rubric" value={value} onParsed={onParsed} />
+        <UploadZone label="Common Rubric" value={value} onParsed={onParsed} onClear={onClear} />
       ) : (
         <div className="space-y-3">
           {selectedDocs.map((docType) => (
@@ -130,6 +143,7 @@ export function RubricUpload({
               label={`${docType.toUpperCase()} Rubric`}
               value={byDocType[docType] || ''}
               onParsed={(yaml) => onParsedForDocType(docType, yaml)}
+              onClear={() => onClearForDocType(docType)}
             />
           ))}
         </div>

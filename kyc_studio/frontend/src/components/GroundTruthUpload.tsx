@@ -1,6 +1,7 @@
 import { useDropzone } from 'react-dropzone'
 import { Database, Download } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { ClearUploadButton } from './ClearUploadButton'
 import { downloadGroundTruthTemplate } from '../lib/api'
 import type { GroundTruth, GroundTruthManifest } from '../lib/types'
 
@@ -9,6 +10,7 @@ interface GroundTruthUploadProps {
   manifest: GroundTruthManifest | null
   onParsed: (payload: GroundTruth) => void
   onParsedManifest: (payload: GroundTruthManifest) => void
+  onClear: () => void
 }
 
 function normalizeManifestToGroundTruth(input: unknown): { summary: GroundTruth; manifest: GroundTruthManifest } {
@@ -31,7 +33,7 @@ function normalizeManifestToGroundTruth(input: unknown): { summary: GroundTruth;
   const manifest: GroundTruthManifest = {
     ...(root as Record<string, unknown>),
     person,
-    documents,
+    documents: documents as GroundTruthManifest['documents'],
   }
 
   return {
@@ -51,9 +53,13 @@ function normalizeManifestToGroundTruth(input: unknown): { summary: GroundTruth;
   }
 }
 
-export function GroundTruthUpload({ data, manifest, onParsed, onParsedManifest }: GroundTruthUploadProps) {
+export function GroundTruthUpload({ data, manifest, onParsed, onParsedManifest, onClear }: GroundTruthUploadProps) {
   const [showGroundTruthData, setShowGroundTruthData] = useState(false)
   const [uploadedFileName, setUploadedFileName] = useState('')
+
+  useEffect(() => {
+    if (!data) setUploadedFileName('')
+  }, [data])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     maxFiles: 1,
@@ -90,7 +96,12 @@ export function GroundTruthUpload({ data, manifest, onParsed, onParsedManifest }
         }`}
       >
         <input {...getInputProps()} />
-        {uploadedFileName ? uploadedFileName : 'Upload or drop ground truth JSON'}
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate">
+            {uploadedFileName || (data ? 'Ground truth loaded' : 'Upload or drop ground truth JSON')}
+          </span>
+          {data || uploadedFileName ? <ClearUploadButton onClick={onClear} /> : null}
+        </div>
       </div>
 
       {data ? (
