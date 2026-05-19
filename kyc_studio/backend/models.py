@@ -49,7 +49,8 @@ class FieldMatch(BaseModel):
     field: str
     extracted: Any
     ground_truth: Any
-    status: Literal["match", "mismatch", "missing"]
+    status: Literal["match", "mismatch", "missing", "partial"]
+    coverage_percent: Optional[float] = None
 
 
 class DocumentKYCResult(BaseModel):

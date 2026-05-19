@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable, List, Set
 
+from manifest_field_matches import mandatory_field_failures, required_fields_completeness_score
 from models import CheckResult, FieldMatch
 
 
@@ -87,7 +88,7 @@ def filter_checks_for_doc(
 
 
 def mandatory_fields_check_rules(field_matches: List[FieldMatch], doc_type: str) -> CheckResult:
-    failures = [f"{doc_type}.{fm.field} ({fm.status})" for fm in field_matches if fm.status != "match"]
+    failures = mandatory_field_failures(field_matches, normalize_doc_type(doc_type))
     passed = not failures
     return CheckResult(
         name="Mandatory Fields",
@@ -99,7 +100,7 @@ def mandatory_fields_check_rules(field_matches: List[FieldMatch], doc_type: str)
 
 
 def mandatory_fields_check_rubric(field_matches: List[FieldMatch], doc_type: str) -> CheckResult:
-    failures = [f"{doc_type}.{fm.field} ({fm.status})" for fm in field_matches if fm.status != "match"]
+    failures = mandatory_field_failures(field_matches, normalize_doc_type(doc_type))
     passed = not failures
     return CheckResult(
         name="mandatory_fields",
@@ -118,6 +119,95 @@ def score_from_checks(checks: List[CheckResult]) -> float:
     return round((passed_weight / total_weight) * 100, 2)
 
 
+def _patch_gender_consistency(check: CheckResult, field_matches: List[FieldMatch], doc_type: str) -> CheckResult:
+    dtype = normalize_doc_type(doc_type)
+
+    if dtype == "pan":
+        gender_row = next((fm for fm in field_matches if fm.field == "gender"), None)
+        if gender_row is None:
+            return CheckResult(
+                name=check.name,
+                passed=True,
+                score=100.0,
+                detail="Gender not printed on PAN; check not applicable",
+                weight=check.weight,
+            )
+
+    if dtype == "aadhaar":
+        gender_row = next((fm for fm in field_matches if fm.field == "gender"), None)
+        if gender_row:
+            if gender_row.status in {"match", "partial"}:
+                return CheckResult(
+                    name=check.name,
+                    passed=True,
+                    score=100.0,
+                    detail="Aadhaar gender matches manifest",
+                    weight=check.weight,
+                )
+            if gender_row.status == "missing":
+                return CheckResult(
+                    name=check.name,
+                    passed=False,
+                    score=0.0,
+                    detail="Gender missing on this Aadhaar document",
+                    weight=check.weight,
+                )
+
+    if dtype == "passport":
+        sex_row = next((fm for fm in field_matches if fm.field == "sex"), None)
+        if sex_row and sex_row.status in {"match", "partial"}:
+            return CheckResult(
+                name=check.name,
+                passed=True,
+                score=100.0,
+                detail="Passport sex matches manifest",
+                weight=check.weight,
+            )
+
+    return check
+
+
+def _patch_passport_validity(check: CheckResult, field_matches: List[FieldMatch], doc_type: str) -> CheckResult:
+    if check.name != "passport_validity" or normalize_doc_type(doc_type) != "passport":
+        return check
+    core = {"passport_number", "given_names", "surname", "date_of_birth", "nationality", "sex"}
+    core_rows = [fm for fm in field_matches if fm.field in core]
+    if not core_rows:
+        return check
+    core_ok = all(fm.status in {"match", "partial"} for fm in core_rows)
+    expiry_row = next((fm for fm in field_matches if fm.field == "date_of_expiration"), None)
+    expiry_matches_manifest = expiry_row is not None and expiry_row.status in {"match", "partial"}
+    if core_ok:
+        detail = "Passport identity fields match manifest"
+        if expiry_row and not expiry_matches_manifest:
+            detail += "; expiration differs from manifest"
+        elif expiry_matches_manifest:
+            detail += "; expiration matches manifest (may still be past date)"
+        return CheckResult(
+            name=check.name,
+            passed=True,
+            score=100.0,
+            detail=detail,
+            weight=check.weight,
+        )
+    return check
+
+
+def _patch_required_fields_completeness(
+    check: CheckResult, field_matches: List[FieldMatch], doc_type: str
+) -> CheckResult:
+    if check.name != "required_fields_completeness":
+        return check
+    score, passed, detail = required_fields_completeness_score(field_matches, normalize_doc_type(doc_type))
+    return CheckResult(
+        name=check.name,
+        passed=passed,
+        score=score,
+        detail=detail,
+        weight=check.weight,
+    )
+
+
 def checks_for_document_card(
     checks: List[CheckResult],
     doc_type: str,
@@ -132,7 +222,14 @@ def checks_for_document_card(
     for check in filtered:
         if check.name in {"Mandatory Fields", "mandatory_fields"}:
             continue
-        result.append(check)
+        patched = check
+        if check.name in {"Gender Consistency", "gender_consistency"}:
+            patched = _patch_gender_consistency(check, field_matches, doc_type)
+        if check.name == "required_fields_completeness":
+            patched = _patch_required_fields_completeness(check, field_matches, doc_type)
+        if check.name == "passport_validity":
+            patched = _patch_passport_validity(check, field_matches, doc_type)
+        result.append(patched)
     if is_rubric:
         result.append(mandatory_fields_check_rubric(field_matches, doc_type))
     else:

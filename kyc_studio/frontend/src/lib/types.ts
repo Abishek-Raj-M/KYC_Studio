@@ -2,6 +2,7 @@ export type DocType = 'passport' | 'aadhaar' | 'pan'
 export type Side = 'front' | 'back'
 export type MethodType = 'rules' | 'llm' | 'both'
 export type ScopeType = 'individual' | 'all'
+/** @deprecated Rubrics are built-in; kept for API compatibility only */
 export type RubricMode = 'single' | 'per_doc'
 
 export interface UploadedDocImage {
@@ -45,7 +46,8 @@ export interface FieldMatch {
   field: string
   extracted: unknown
   ground_truth: unknown
-  status: 'match' | 'mismatch' | 'missing'
+  status: 'match' | 'mismatch' | 'missing' | 'partial'
+  coverage_percent?: number | null
 }
 
 export interface DocumentKYCResult {

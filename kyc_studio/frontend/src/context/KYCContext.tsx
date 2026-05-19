@@ -16,7 +16,6 @@ interface KYCContextValue {
   extractedDocs: ExtractedDocument[]
   groundTruth: GroundTruth | null
   groundTruthManifest: GroundTruthManifest | null
-  rubricYaml: string
   method: MethodType
   scope: ScopeType
   loading: boolean
@@ -26,7 +25,6 @@ interface KYCContextValue {
   setExtractedDocs: React.Dispatch<React.SetStateAction<ExtractedDocument[]>>
   setGroundTruth: React.Dispatch<React.SetStateAction<GroundTruth | null>>
   setGroundTruthManifest: React.Dispatch<React.SetStateAction<GroundTruthManifest | null>>
-  setRubricYaml: React.Dispatch<React.SetStateAction<string>>
   setMethod: React.Dispatch<React.SetStateAction<MethodType>>
   setScope: React.Dispatch<React.SetStateAction<ScopeType>>
   setLoading: React.Dispatch<React.SetStateAction<boolean>>
@@ -41,7 +39,6 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const [extractedDocs, setExtractedDocs] = useState<ExtractedDocument[]>([])
   const [groundTruth, setGroundTruth] = useState<GroundTruth | null>(null)
   const [groundTruthManifest, setGroundTruthManifest] = useState<GroundTruthManifest | null>(null)
-  const [rubricYaml, setRubricYaml] = useState('')
   const [method, setMethod] = useState<MethodType>('rules')
   const [scope, setScope] = useState<ScopeType>('individual')
   const [loading, setLoading] = useState(false)
@@ -54,7 +51,6 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       extractedDocs,
       groundTruth,
       groundTruthManifest,
-      rubricYaml,
       method,
       scope,
       loading,
@@ -64,14 +60,13 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       setExtractedDocs,
       setGroundTruth,
       setGroundTruthManifest,
-      setRubricYaml,
       setMethod,
       setScope,
       setLoading,
       setError,
       setResult,
     }),
-    [uploads, extractedDocs, groundTruth, groundTruthManifest, rubricYaml, method, scope, loading, error, result],
+    [uploads, extractedDocs, groundTruth, groundTruthManifest, method, scope, loading, error, result],
   )
 
   return <KYCContext.Provider value={value}>{children}</KYCContext.Provider>

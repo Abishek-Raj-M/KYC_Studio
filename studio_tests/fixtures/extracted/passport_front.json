@@ -5,12 +5,13 @@
   "extracted": {
     "document_type": "passport",
     "passport_number": "I5108603",
-    "given_names": "RAJESH SHARMA",
-    "surname": ".",
+    "given_names": "RAJESH",
+    "surname": "SHARMA",
     "date_of_birth": "21/07/1987",
     "date_of_expiration": "31/12/2030",
     "nationality": "INDIAN",
     "sex": "M",
+    "place_of_birth": "MUMBAI",
     "_metadata": { "source_file": "passport_front_clean.jpg" }
   }
 }

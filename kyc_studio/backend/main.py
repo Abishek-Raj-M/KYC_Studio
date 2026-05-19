@@ -8,10 +8,12 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import yaml
+
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 
 # Use vendored OCR modules inside kyc_studio/backend/image_processing.
 LOCAL_IMAGE_PROCESSING = Path(__file__).resolve().parent / "image_processing"
@@ -24,6 +26,15 @@ from ocr_extraction_pipeline import OCRExtractionPipeline  # noqa: E402
 from canonical_mapper import normalize_document, normalize_ground_truth
 from document_schemas_ext import ExtendedDocumentSchemaHandler  # noqa: E402
 from kyc_llm_agent import KycLLMAgent  # noqa: E402
+from builtin_eval import (  # noqa: E402
+    BUILTIN_RUBRICS_DIR,
+    RUBRIC_FILES,
+    RULES_REFERENCE_MD,
+    builtin_rubric_map_for_doc_types,
+    load_builtin_rubric_yaml,
+    normalize_doc_type,
+    rubric_markdown_for_doc_type,
+)
 from kyc_rules import RuleBasedKYCEngine  # noqa: E402
 from models import CheckResult, GroundTruth, KYCRequest, KYCResult  # noqa: E402
 
@@ -80,8 +91,9 @@ async def extract_documents(
             tmp.write(payload)
             temp_path = tmp.name
 
+        declared = doc_types[idx] if doc_types and idx < len(doc_types) else None
         try:
-            extracted = pipeline.process_single_image(temp_path)
+            extracted = pipeline.process_single_image(temp_path, declared_doc_type=declared)
         finally:
             try:
                 os.unlink(temp_path)
@@ -160,10 +172,17 @@ def evaluate_kyc(req: KYCRequest) -> Dict[str, Any]:
 
     engine = RuleBasedKYCEngine()
 
+    def _resolve_rubric_map() -> Dict[str, str]:
+        if req.rubrics_by_doc_type:
+            return {
+                normalize_doc_type(k): v
+                for k, v in req.rubrics_by_doc_type.items()
+                if v and str(v).strip()
+            }
+        return builtin_rubric_map_for_doc_types(doc_types_in_scope)
+
     def run_llm_with_rubrics() -> KYCResult:
-        if req.rubric_mode == "single":
-            if not req.rubric:
-                raise HTTPException(status_code=400, detail="rubric YAML is required for llm mode")
+        if req.rubric_mode == "single" and req.rubric and str(req.rubric).strip():
             llm_agent = KycLLMAgent()
             return llm_agent.evaluate(
                 docs=docs,
@@ -174,18 +193,14 @@ def evaluate_kyc(req: KYCRequest) -> Dict[str, Any]:
                 doc_types_in_scope=doc_types_in_scope,
             )
 
-        rubric_map = {k.lower().strip(): v for k, v in req.rubrics_by_doc_type.items() if v and v.strip()}
-        if not rubric_map:
-            raise HTTPException(status_code=400, detail="rubrics_by_doc_type is required when rubric_mode=per_doc")
-
-        alias_map = {"pan_card": "pan", "pancard": "pan", "aadhar": "aadhaar"}
+        rubric_map = _resolve_rubric_map()
         per_doc_pairs: List[tuple[Dict[str, Any], str, str]] = []
         for doc in docs:
             doc_type = str(doc.get("document_type") or "unknown").lower().strip()
-            canonical = alias_map.get(doc_type, doc_type)
-            rubric_yaml = rubric_map.get(canonical) or rubric_map.get(doc_type)
+            canonical = normalize_doc_type(doc_type)
+            rubric_yaml = rubric_map.get(canonical)
             if not rubric_yaml:
-                raise HTTPException(status_code=400, detail=f"Missing rubric for document type: {doc_type}")
+                raise HTTPException(status_code=400, detail=f"No built-in rubric for document type: {doc_type}")
             per_doc_pairs.append((doc, rubric_yaml, doc_type))
 
         llm_agent = KycLLMAgent()
@@ -228,7 +243,12 @@ def evaluate_kyc(req: KYCRequest) -> Dict[str, Any]:
         )
 
     if req.method == "rules":
-        result = engine.evaluate(docs=docs, ground_truth=ground_truth, scope=req.scope)
+        result = engine.evaluate(
+            docs=docs,
+            ground_truth=ground_truth,
+            scope=req.scope,
+            ground_truth_manifest=raw_ground_truth,
+        )
         logger.info("Rules result overall_score=%s passed=%s summary=%s", result.overall_score, result.passed, result.summary)
         for check in result.checks:
             logger.info("Rules check name=%s passed=%s score=%s detail=%s", check.name, check.passed, check.score, check.detail)
@@ -242,7 +262,12 @@ def evaluate_kyc(req: KYCRequest) -> Dict[str, Any]:
         return {"result": result.model_dump()}
 
     if req.method == "both":
-        rules_result = engine.evaluate(docs=docs, ground_truth=ground_truth, scope=req.scope)
+        rules_result = engine.evaluate(
+            docs=docs,
+            ground_truth=ground_truth,
+            scope=req.scope,
+            ground_truth_manifest=raw_ground_truth,
+        )
         llm_result = run_llm_with_rubrics()
 
         rules_weight = 0.5
@@ -402,11 +427,62 @@ async def run_upload_flow(
     return evaluate_kyc(req)
 
 
+@app.get("/api/reference/rules")
+def rules_reference_download() -> FileResponse:
+    return FileResponse(
+        path=RULES_REFERENCE_MD,
+        filename="kyc-rules-reference.md",
+        media_type="text/markdown",
+    )
+
+
+@app.get("/api/reference/rubric/{doc_type}", response_model=None)
+def rubric_reference_download(doc_type: str, format: str = Query("md")):
+    canonical = normalize_doc_type(doc_type)
+    try:
+        yaml_text = load_builtin_rubric_yaml(canonical)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if format.lower() == "yaml":
+        return PlainTextResponse(
+            content=yaml_text,
+            media_type="application/x-yaml",
+            headers={"Content-Disposition": f'attachment; filename="{canonical}-rubric.yaml"'},
+        )
+
+    md = rubric_markdown_for_doc_type(canonical)
+    return PlainTextResponse(
+        content=md,
+        media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{canonical}-rubric.md"'},
+    )
+
+
+@app.get("/api/reference/rubrics/active")
+def active_rubrics_info(doc_types: str = Query(..., description="Comma-separated doc types, e.g. passport,aadhaar")) -> Dict[str, Any]:
+    types = [normalize_doc_type(t) for t in doc_types.split(",") if t.strip()]
+    rubric_map = builtin_rubric_map_for_doc_types(types)
+    return {
+        "doc_types": types,
+        "rubrics": {
+            dt: {
+                "name": (yaml.safe_load(text) or {}).get("name"),
+                "check_count": len((yaml.safe_load(text) or {}).get("checks", [])),
+                "download_md": f"/api/reference/rubric/{dt}?format=md",
+                "download_yaml": f"/api/reference/rubric/{dt}?format=yaml",
+            }
+            for dt, text in rubric_map.items()
+        },
+    }
+
+
 @app.get("/api/rubric/template")
 def rubric_template() -> FileResponse:
+    """Legacy alias — combined built-in rubric YAML."""
     return FileResponse(
-        path=Path(__file__).with_name("rubric_template.yaml"),
-        filename="rubric_template.yaml",
+        path=BUILTIN_RUBRICS_DIR / RUBRIC_FILES["combined"],
+        filename="indian_kyc_combined_rubric.yaml",
         media_type="application/x-yaml",
     )
 
@@ -429,6 +505,9 @@ def root() -> Dict[str, Any]:
             "POST /api/extract",
             "POST /api/evaluate",
             "POST /api/run-upload",
+            "GET /api/reference/rules",
+            "GET /api/reference/rubric/{doc_type}",
+            "GET /api/reference/rubrics/active",
             "GET /api/rubric/template",
             "GET /api/ground-truth/template",
         ],

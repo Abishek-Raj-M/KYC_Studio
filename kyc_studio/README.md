@@ -82,21 +82,23 @@ The Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`.
 ## Quick Usage Flow
 
 1. Open frontend in browser.
-2. Upload document images (Passport/Aadhaar/PAN front; back optional).
+2. Upload document images (Passport/Aadhaar/PAN front; back optional). The upload slot sets the vision schema at extract time (`doc_types` overrides Tesseract detection). The extract preview shows all returned fields (no 8-field cap).
 3. Upload ground-truth JSON.
 4. Select evaluation method:
    - Rule-Based
    - LLM Rubric
    - Both
-5. If using LLM/Both, upload rubric YAML or download template and upload it.
+5. If using LLM/Both, built-in rubrics are selected automatically per uploaded document (download references below the config panel).
 6. Click **Run KYC**.
 7. Review overall score, per-document checks, and field match details.
 
 ## Available Backend APIs
 
-- `POST /api/extract` - OCR extraction for uploaded files
+- `POST /api/extract` - OCR extraction for uploaded files (pass `doc_types` per file so Aadhaar/PAN schemas match the slot)
 - `POST /api/evaluate` - KYC evaluation (rules/llm/both)
-- `GET /api/rubric/template` - download rubric YAML template
+- `GET /api/reference/rules` - download built-in rules reference (Markdown)
+- `GET /api/reference/rubric/{doc_type}?format=md` - download built-in rubric for passport/aadhaar/pan
+- `GET /api/rubric/template` - legacy combined rubric YAML download
 - `GET /api/ground-truth/template` - download ground truth JSON template
 
 ## Troubleshooting

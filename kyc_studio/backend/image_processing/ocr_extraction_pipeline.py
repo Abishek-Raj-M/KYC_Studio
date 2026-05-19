@@ -12,7 +12,7 @@ import json
 import argparse
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
 from enhanced_image_preprocessor import ImagePreprocessor
@@ -30,12 +30,13 @@ class OCRExtractionPipeline:
         self.extractor = HybridOCRExtractor(api_key, tesseract_path)
         self.results = []
     
-    def process_single_image(self, image_path: str) -> Dict:
+    def process_single_image(self, image_path: str, declared_doc_type: Optional[str] = None) -> Dict:
         """
         Process a single ID card image
         
         Args:
             image_path: Path to image file
+            declared_doc_type: Upload slot type from UI (overrides detector when set)
             
         Returns:
             Extracted JSON data
@@ -54,7 +55,16 @@ class OCRExtractionPipeline:
             import pytesseract
             quick_ocr = pytesseract.image_to_string(original)
             print("@@@@@@@@@@@@@ quick_ocr is:", quick_ocr)
-            doc_type = self.detector.detect(quick_ocr, os.path.basename(image_path))
+            detected_type = self.detector.detect(quick_ocr, os.path.basename(image_path))
+            doc_type = detected_type
+            if declared_doc_type:
+                declared = str(declared_doc_type).lower().strip()
+                alias = {"pan_card": "pan", "pancard": "pan", "aadhar": "aadhaar"}
+                doc_type = alias.get(declared, declared)
+                if detected_type != doc_type and detected_type != "unknown":
+                    print(
+                        f"  ⚠️  Declared type '{doc_type}' overrides detector '{detected_type}'"
+                    )
             
             # Step 3: Hybrid extraction
             print("\n[3/4] Extracting structured data...")
@@ -68,7 +78,8 @@ class OCRExtractionPipeline:
             extracted_data["_metadata"] = {
                 "source_file": os.path.basename(image_path),
                 "extraction_timestamp": datetime.now().isoformat(),
-                "detected_type": doc_type,
+                "detected_type": detected_type,
+                "declared_type": declared_doc_type,
                 "confidence": self.detector.get_confidence(quick_ocr, doc_type)
             }
             

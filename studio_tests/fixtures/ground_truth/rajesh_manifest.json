@@ -29,9 +29,7 @@
         "father_name": "SURESH SHARMA",
         "dob": "21/07/1987",
         "pan": "DVXRS2424S",
-        "gender": "Male",
-        "signature_name": "Rajesh Sharma",
-        "issue_date": "24/03/2012"
+        "signature_name": "Rajesh Sharma"
       }
     },
     "aadhaar": {
@@ -43,8 +41,7 @@
         "address": "42 Mahatma Gandhi Road, Andheri West, Mumbai",
         "city": "MUMBAI",
         "state": "Maharashtra",
-        "pincode": "400058",
-        "issue_date": "01/01/2018"
+        "pincode": "400058"
       }
     }
   }

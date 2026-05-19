@@ -25,10 +25,16 @@ export function FieldMatchTable({ rows }: { rows: FieldMatch[] }) {
               <td className="px-2 py-2">
                 <span
                   className={`rounded px-1.5 py-0.5 ${
-                    row.status === 'match' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-rose-500/15 text-rose-500'
+                    row.status === 'match'
+                      ? 'bg-emerald-500/15 text-emerald-500'
+                      : row.status === 'partial'
+                        ? 'bg-amber-500/15 text-amber-600'
+                        : 'bg-rose-500/15 text-rose-500'
                   }`}
                 >
-                  {row.status}
+                  {row.status === 'partial' && row.coverage_percent != null
+                    ? `${row.coverage_percent}% coverage`
+                    : row.status}
                 </span>
               </td>
             </tr>

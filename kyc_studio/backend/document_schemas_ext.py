@@ -38,8 +38,12 @@ RULES:
   "date_of_birth": "YYYY-MM-DD",
   "sex": "M/F",
   "place_of_birth": "string",
+  "father_name": "string",
+  "mother_name": "string",
   "date_of_issue": "YYYY-MM-DD",
   "date_of_expiration": "YYYY-MM-DD",
+  "place_of_issue": "string",
+  "signature_name": "string",
   "issuing_country": "string"
 }''',
             "aadhaar": '''
@@ -50,7 +54,9 @@ RULES:
   "dob": "YYYY-MM-DD",
   "gender": "string",
   "address": "string",
-  "pincode": "string"
+  "pincode": "string",
+  "city": "string",
+  "state": "string"
 }''',
             "pan": '''
 {
@@ -58,7 +64,8 @@ RULES:
   "pan_number": "string",
   "name": "string",
   "father_name": "string",
-  "dob": "YYYY-MM-DD"
+  "dob": "YYYY-MM-DD",
+  "signature_name": "string"
 }''',
             "unknown": '''
 {

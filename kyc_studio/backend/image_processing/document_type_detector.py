@@ -18,10 +18,11 @@ class DocumentTypeDetector:
         ],
         "pan": [
             "pan card", "permanent account number", "income tax department",
-            "pan number", "income tax", "government of india", "pancard"
+            "pan number", "income tax", "pancard", "permanent account"
         ],
         "aadhaar": [
-            "aadhaar", "uidai", "unique identification", "aadhaar number"
+            "aadhaar", "uidai", "unique identification", "aadhaar number",
+            "enrollment", "your aadhaar", "government of india", "भारत सरकार",
         ],
     }
 
@@ -55,11 +56,20 @@ class DocumentTypeDetector:
         
         text_lower = ocr_text.lower()
         
-        # Score each document type
+        # Score each document type (strong signals weighted higher)
         scores = {}
         for doc_type, keywords in self.KEYWORDS.items():
-            score = sum(1 for keyword in keywords if keyword in text_lower)
+            score = 0
+            for keyword in keywords:
+                if keyword in text_lower:
+                    score += 2 if doc_type == "aadhaar" and keyword in {"uidai", "aadhaar number", "your aadhaar"} else 1
             scores[doc_type] = score
+
+        # Generic "government of india" appears on Aadhaar and PAN — do not let it alone pick PAN
+        if scores.get("pan", 0) <= 1 and "government of india" in text_lower:
+            scores["pan"] = 0
+        if "uidai" in text_lower or "aadhaar" in text_lower:
+            scores["aadhaar"] = scores.get("aadhaar", 0) + 2
         
         # Get best match
         if max(scores.values()) > 0:

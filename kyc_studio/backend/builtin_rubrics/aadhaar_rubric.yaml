@@ -1,0 +1,23 @@
+rubric_version: "1.0"
+name: "Aadhaar KYC Rubric"
+checks:
+  - id: aadhaar_name_match
+    description: "Aadhaar name matches ground truth"
+    weight: 0.25
+    criteria: "Fuzzy match >= 0.85 between extracted name and ground truth"
+  - id: aadhaar_dob_match
+    description: "Aadhaar DOB matches ground truth"
+    weight: 0.20
+    criteria: "Exact date match after normalization"
+  - id: aadhaar_number_format
+    description: "Aadhaar number format is valid"
+    weight: 0.30
+    criteria: "Must be 12 digits (spaces allowed in source, normalized before check)"
+  - id: aadhaar_address_present
+    description: "Address is present on Aadhaar"
+    weight: 0.15
+    criteria: "address field should be non-empty"
+  - id: aadhaar_required_fields
+    description: "Mandatory Aadhaar fields exist"
+    weight: 0.10
+    criteria: "name, dob, gender, aadhaar number are present"

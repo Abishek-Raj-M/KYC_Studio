@@ -3,13 +3,13 @@ import { AlertCircle, Loader2, ShieldCheck } from 'lucide-react'
 import { DocumentUploadCard } from './components/DocumentUploadCard'
 import { EvaluationConfig } from './components/EvaluationConfig'
 import { GroundTruthUpload } from './components/GroundTruthUpload'
-import { RubricUpload } from './components/RubricUpload'
+import { EvaluationReferencePanel } from './components/EvaluationReferencePanel'
 import { ThemeToggle } from './components/ThemeToggle'
 import { DocumentResultCard } from './components/ResultsPanel/DocumentResultCard'
 import { EvaluationModeBadge } from './components/ResultsPanel/EvaluationModeBadge'
 import { OverallScoreCard } from './components/ResultsPanel/OverallScoreCard'
 import { evaluateKyc, extractDocs } from './lib/api'
-import type { BothResultEnvelope, DocType, GroundTruthManifest, KYCResult, MethodType, RubricMode, ScopeType, Side } from './lib/types'
+import type { BothResultEnvelope, DocType, GroundTruthManifest, KYCResult, MethodType, ScopeType, Side } from './lib/types'
 import { useKYC } from './context/KYCContext'
 
 const DOCS: { type: DocType; title: string }[] = [
@@ -28,7 +28,6 @@ export default function App() {
     extractedDocs,
     groundTruth,
     groundTruthManifest,
-    rubricYaml,
     method,
     scope,
     loading,
@@ -38,7 +37,6 @@ export default function App() {
     setExtractedDocs,
     setGroundTruth,
     setGroundTruthManifest,
-    setRubricYaml,
     setMethod,
     setScope,
     setLoading,
@@ -48,9 +46,6 @@ export default function App() {
 
   const [showBack, setShowBack] = useState<Record<DocType, boolean>>({ passport: false, aadhaar: false, pan: false })
   const [selectedDocs, setSelectedDocs] = useState<DocType[]>([])
-  const [rubricMode, setRubricMode] = useState<RubricMode>('single')
-  const [rubricsByDocType, setRubricsByDocType] = useState<Partial<Record<DocType, string>>>({})
-
   function clearStaleResults() {
     setResult(null)
     setError(null)
@@ -64,11 +59,6 @@ export default function App() {
   function changeScope(next: ScopeType) {
     if (next !== scope) clearStaleResults()
     setScope(next)
-  }
-
-  function changeRubricMode(next: RubricMode) {
-    if (next !== rubricMode) clearStaleResults()
-    setRubricMode(next)
   }
 
   const extractedByDoc = useMemo(() => {
@@ -109,20 +99,6 @@ export default function App() {
     clearStaleResults()
     setGroundTruth(null)
     setGroundTruthManifest(null)
-  }
-
-  function clearRubric() {
-    clearStaleResults()
-    setRubricYaml('')
-  }
-
-  function clearRubricForDoc(docType: DocType) {
-    clearStaleResults()
-    setRubricsByDocType((prev) => {
-      const next = { ...prev }
-      delete next[docType]
-      return next
-    })
   }
 
   async function handleFileDrop(file: File, docType: DocType, side: Side) {
@@ -176,22 +152,6 @@ export default function App() {
       setError('Upload and extract at least one document first')
       return
     }
-    if ((method === 'llm' || method === 'both') && !rubricYaml.trim()) {
-      if (rubricMode === 'single') {
-        setError('Rubric YAML is required for LLM modes')
-        return
-      }
-    }
-    if (method === 'llm' || method === 'both') {
-      if (rubricMode === 'per_doc') {
-        const missing = selectedDocs.filter((doc) => !rubricsByDocType[doc]?.trim())
-        if (missing.length) {
-          setError(`Missing rubric for: ${missing.join(', ')}`)
-          return
-        }
-      }
-    }
-
     try {
       setError(null)
       setLoading(true)
@@ -201,9 +161,6 @@ export default function App() {
         ground_truth_manifest: groundTruthManifest || undefined,
         method,
         scope,
-        rubric: rubricYaml || undefined,
-        rubric_mode: rubricMode,
-        rubrics_by_doc_type: rubricsByDocType,
       })
       setResult(response.result)
     } catch (e) {
@@ -215,12 +172,19 @@ export default function App() {
 
   const resultDisplay = useMemo(() => {
     if (!result) return null
+    const isIndividual = (isBoth(result) ? result.scope : (result as KYCResult).scope) === 'individual'
     if (isBoth(result)) {
       return {
         scope: result.scope,
         method: 'both' as const,
         envelope: result,
-        sections: [{ label: 'Combined Evaluation', data: result.combined_result }],
+        isIndividual,
+        sections: [
+          {
+            label: isIndividual ? 'Per-document results' : 'Combined Evaluation',
+            data: result.combined_result,
+          },
+        ],
       }
     }
     const single = result as KYCResult
@@ -228,7 +192,8 @@ export default function App() {
       scope: single.scope,
       method: single.method,
       envelope: null,
-      sections: [{ label: single.method.toUpperCase(), data: single }],
+      isIndividual,
+      sections: [{ label: isIndividual ? 'Per-document results' : single.method.toUpperCase(), data: single }],
     }
   }, [result])
 
@@ -246,11 +211,6 @@ export default function App() {
         })
         setExtractedDocs((current) => current.filter((d) => d.doc_type !== docType))
         setShowBack((current) => ({ ...current, [docType]: false }))
-        setRubricsByDocType((current) => {
-          const updated = { ...current }
-          delete updated[docType]
-          return updated
-        })
         setResult(null)
         setError(null)
       }
@@ -321,25 +281,7 @@ export default function App() {
             onClear={clearGroundTruth}
           />
           <EvaluationConfig method={method} scope={scope} onMethod={changeMethod} onScope={changeScope} />
-          {(method === 'llm' || method === 'both') ? (
-            <RubricUpload
-              selectedDocs={selectedDocs}
-              rubricMode={rubricMode}
-              value={rubricYaml}
-              byDocType={rubricsByDocType}
-              onRubricModeChange={changeRubricMode}
-              onParsed={(yaml) => {
-                clearStaleResults()
-                setRubricYaml(yaml)
-              }}
-              onParsedForDocType={(docType, yaml) => {
-                clearStaleResults()
-                setRubricsByDocType((prev) => ({ ...prev, [docType]: yaml }))
-              }}
-              onClear={clearRubric}
-              onClearForDocType={clearRubricForDoc}
-            />
-          ) : null}
+          <EvaluationReferencePanel method={method} selectedDocs={selectedDocs} />
 
           <button
             type="button"
@@ -373,9 +315,11 @@ export default function App() {
                     <EvaluationModeBadge mode={resultDisplay.method} />
                   </div>
 
-                  <OverallScoreCard score={section.data.overall_score} passed={section.data.passed} />
+                  {!resultDisplay.isIndividual ? (
+                    <OverallScoreCard score={section.data.overall_score} passed={section.data.passed} />
+                  ) : null}
 
-                  {resultDisplay.method === 'both' && resultDisplay.envelope ? (
+                  {!resultDisplay.isIndividual && resultDisplay.method === 'both' && resultDisplay.envelope ? (
                     <div className="surface-glass rounded-2xl border border-border bg-panel p-3 shadow-card">
                       <div className="mb-2 text-sm font-semibold">Score Breakdown</div>
                       <div className="grid gap-2 text-xs md:grid-cols-2">
@@ -395,10 +339,14 @@ export default function App() {
                     </div>
                   ) : null}
 
-                  {resultDisplay.scope === 'individual' || resultDisplay.method === 'both' ? (
+                  {resultDisplay.isIndividual || resultDisplay.method === 'both' ? (
                     <div className="space-y-2">
                       {section.data.per_document_results.map((doc) => (
-                        <DocumentResultCard key={`${section.label}-${doc.document_id}`} result={doc} />
+                        <DocumentResultCard
+                          key={`${section.label}-${doc.document_id}`}
+                          result={doc}
+                          showScoreBreakdown={resultDisplay.isIndividual && resultDisplay.method === 'both'}
+                        />
                       ))}
                     </div>
                   ) : (

@@ -10,6 +10,7 @@ import yaml
 from openai import AzureOpenAI
 
 from check_scoping import checks_for_document_card, score_from_checks
+from manifest_field_matches import field_matches_from_manifest, mandatory_field_failures
 from models import CheckResult, DocumentKYCResult, FieldMatch, KYCResult
 
 
@@ -80,10 +81,9 @@ class KycLLMAgent:
         for d in docs:
             doc_id = str(d.get("_metadata", {}).get("source_file") or d.get("document_type") or "document")
             doc_type = str(d.get("document_type") or "unknown")
-            field_matches = self._field_matches_for_doc(d, ground_truth_manifest or ground_truth)
-            for fm in field_matches:
-                if fm.status != "match":
-                    mandatory_failures.append(f"{doc_type}.{fm.field} ({fm.status})")
+            manifest = ground_truth_manifest or ground_truth
+            field_matches = field_matches_from_manifest(d, manifest)
+            mandatory_failures.extend(mandatory_field_failures(field_matches, doc_type))
 
             doc_checks = checks_for_document_card(
                 check_results,
@@ -199,67 +199,5 @@ class KycLLMAgent:
 
         return result
 
-    def _compare_value(self, extracted_value: Any, expected_value: Any) -> str:
-        extracted_text = "" if extracted_value is None else str(extracted_value).strip()
-        expected_text = "" if expected_value is None else str(expected_value).strip()
-        if not extracted_text or not expected_text:
-            return "missing"
-
-        for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]:
-            try:
-                left = datetime.strptime(extracted_text, fmt)
-                break
-            except ValueError:
-                left = None
-        for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]:
-            try:
-                right = datetime.strptime(expected_text, fmt)
-                break
-            except ValueError:
-                right = None
-        if left and right:
-            return "match" if left.date() == right.date() else "mismatch"
-
-        if extracted_text.lower() == expected_text.lower():
-            return "match"
-        return "mismatch"
-
     def _field_matches_for_doc(self, doc: Dict[str, Any], ground_truth: Dict[str, Any]) -> List[FieldMatch]:
-        doc_type = str(doc.get("document_type") or "unknown").lower().strip()
-        gt_person = ground_truth.get("person", {}) if isinstance(ground_truth, dict) else {}
-        gt_docs = ground_truth.get("documents", {}) if isinstance(ground_truth, dict) else {}
-
-        def as_match(field: str, extracted_value: Any, ground_truth_value: Any) -> FieldMatch:
-            status = self._compare_value(extracted_value, ground_truth_value)
-            return FieldMatch(field=field, extracted=extracted_value, ground_truth=ground_truth_value, status=status)
-
-        if doc_type == "passport":
-            passport_fields = ((gt_docs.get("passport") or {}).get("fields") or {}) if isinstance(gt_docs.get("passport"), dict) else {}
-            return [
-                as_match("passport_number", doc.get("passport_number"), passport_fields.get("passport_number")),
-                as_match("given_names", doc.get("given_names"), gt_person.get("name") or passport_fields.get("given_names")),
-                as_match("surname", doc.get("surname"), passport_fields.get("surname")),
-                as_match("date_of_birth", doc.get("date_of_birth") or doc.get("dob"), gt_person.get("dob") or passport_fields.get("date_of_birth")),
-                as_match("nationality", doc.get("nationality"), gt_person.get("nationality") or passport_fields.get("nationality")),
-            ]
-
-        if doc_type == "aadhaar":
-            aadhaar_fields = ((gt_docs.get("aadhaar") or {}).get("fields") or {}) if isinstance(gt_docs.get("aadhaar"), dict) else {}
-            return [
-                as_match("aadhaar_number", doc.get("aadhaar_number"), aadhaar_fields.get("aadhaar")),
-                as_match("name", doc.get("name"), gt_person.get("name") or aadhaar_fields.get("name")),
-                as_match("dob", doc.get("dob"), gt_person.get("dob") or aadhaar_fields.get("dob")),
-                as_match("gender", doc.get("gender"), gt_person.get("gender") or aadhaar_fields.get("gender")),
-                as_match("address", doc.get("address"), aadhaar_fields.get("address") or ground_truth.get("address")),
-            ]
-
-        if doc_type == "pan":
-            pan_fields = ((gt_docs.get("pan_card") or {}).get("fields") or {}) if isinstance(gt_docs.get("pan_card"), dict) else {}
-            return [
-                as_match("pan_number", doc.get("pan_number"), pan_fields.get("pan")),
-                as_match("name", doc.get("name"), gt_person.get("name") or pan_fields.get("name")),
-                as_match("father_name", doc.get("father_name"), pan_fields.get("father_name")),
-                as_match("dob", doc.get("dob") or doc.get("date_of_birth"), gt_person.get("dob") or pan_fields.get("dob")),
-            ]
-
-        return []
+        return field_matches_from_manifest(doc, ground_truth)

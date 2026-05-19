@@ -33,6 +33,10 @@ FIELD_ALIASES = {
     "place_of_birth": ["place_of_birth", "birth_place", "place_birth"],
     "place_of_issue": ["place_of_issue", "issued_at", "issue_place"],
     "pincode": ["pincode", "pin", "postal_code", "zip_code"],
+    "city": ["city"],
+    "state": ["state"],
+    "signature_name": ["signature_name", "signature"],
+    "issue_date": ["issue_date"],
 }
 
 

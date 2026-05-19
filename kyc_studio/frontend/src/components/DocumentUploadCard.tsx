@@ -76,9 +76,13 @@ export function DocumentUploadCard(props: DocumentUploadCardProps) {
   const { docType, title, front, back, extracted, extractedData, showBack, onToggleBack, onFileDrop, onClearImage } = props
   const [showExtractedData, setShowExtractedData] = useState(false)
 
+  const extractedDocType = String(extractedData?.document_type ?? '')
+  const slotMismatch =
+    extracted && extractedDocType && extractedDocType !== docType && extractedDocType !== 'unknown'
+
   const previewFields = Object.entries(extractedData || {})
     .filter(([key]) => !key.startsWith('_'))
-    .slice(0, 8)
+    .sort(([a], [b]) => a.localeCompare(b))
 
   return (
     <section className="surface-glass rounded-2xl border border-border bg-panel p-3 shadow-card">
@@ -96,6 +100,13 @@ export function DocumentUploadCard(props: DocumentUploadCardProps) {
           <span className="text-xs text-fg-muted">Awaiting image</span>
         )}
       </div>
+
+      {slotMismatch ? (
+        <p className="mb-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-600">
+          Extracted type is <span className="font-semibold">{extractedDocType}</span> but slot is{' '}
+          <span className="font-semibold">{docType}</span>.
+        </p>
+      ) : null}
 
       {extracted && previewFields.length ? (
         <div className="mb-2">
