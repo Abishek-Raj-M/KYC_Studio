@@ -81,6 +81,20 @@ class RuleBasedKYCEngine:
     def _pick_dob(doc: Dict[str, Any]) -> str:
         return str(doc.get("date_of_birth") or doc.get("dob") or "").strip()
 
+    def _extracted_dob_from_docs(self, docs: List[Dict[str, Any]]) -> tuple[Optional[datetime], str, str]:
+        """First parseable date of birth read from uploaded documents (not ground truth)."""
+        for doc in docs:
+            doc_type = str(doc.get("document_type") or "")
+            if doc_type not in {"aadhaar", "passport", "pan"}:
+                continue
+            raw = self._pick_dob(doc)
+            if not raw:
+                continue
+            parsed = self._parse_date(raw)
+            if parsed:
+                return parsed, raw, doc_type
+        return None, "", ""
+
     @staticmethod
     def _pick_gender(doc: Dict[str, Any]) -> str:
         return str(doc.get("sex") or doc.get("gender") or "").strip().upper()
@@ -237,12 +251,21 @@ class RuleBasedKYCEngine:
                     cross_doc_consistency = False
                     break
 
+        dob_for_age, dob_raw, dob_doc = self._extracted_dob_from_docs(docs)
         age_ok = False
-        dob_for_age = self._parse_date(gt_dob) or self._parse_date(self._pick_dob(aadhaar_doc or {}))
         if dob_for_age:
             today = datetime.utcnow().date()
-            years = today.year - dob_for_age.date().year - ((today.month, today.day) < (dob_for_age.date().month, dob_for_age.date().day))
+            years = today.year - dob_for_age.date().year - (
+                (today.month, today.day) < (dob_for_age.date().month, dob_for_age.date().day)
+            )
             age_ok = years >= 18
+            age_detail = (
+                f"Extracted DOB from {dob_doc} ({dob_raw}) indicates age {years} (must be >= 18)"
+                if age_ok
+                else f"Extracted DOB from {dob_doc} ({dob_raw}) indicates age {years} (under 18)"
+            )
+        else:
+            age_detail = "Date of birth not extracted from uploaded documents"
 
         passport_gender = self._pick_gender(passport_doc or {})
         aadhaar_gender = self._pick_gender(aadhaar_doc or {})
@@ -302,7 +325,7 @@ class RuleBasedKYCEngine:
                 )
             )
 
-        checks.append(WeightedCheck("Age Eligibility", age_ok, "Customer age must be >= 18", self.weights["Age Eligibility"]))
+        checks.append(WeightedCheck("Age Eligibility", age_ok, age_detail, self.weights["Age Eligibility"]))
         show_gender_check = bool(
             (passport_gender and aadhaar_gender)
             or (pan_gender and gt_gender and pan_gender)

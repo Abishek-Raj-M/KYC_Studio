@@ -40,6 +40,15 @@ export default function App() {
 
   const [showBack, setShowBack] = useState<Record<DocType, boolean>>({ passport: false, aadhaar: false, pan: false })
   const [selectedDocs, setSelectedDocs] = useState<DocType[]>([])
+  const [extractingSlots, setExtractingSlots] = useState<Set<string>>(new Set())
+
+  function extractionSlotKey(docType: DocType, side: Side) {
+    return `${docType}:${side}`
+  }
+
+  function isDocExtracting(docType: DocType) {
+    return extractingSlots.has(extractionSlotKey(docType, 'front')) || extractingSlots.has(extractionSlotKey(docType, 'back'))
+  }
 
   function clearStaleResults() {
     setResult(null)
@@ -80,6 +89,11 @@ export default function App() {
       return { ...prev, [docType]: updated }
     })
     setExtractedDocs((prev) => prev.filter((d) => !(d.doc_type === docType && d.side === side)))
+    setExtractingSlots((prev) => {
+      const next = new Set(prev)
+      next.delete(extractionSlotKey(docType, side))
+      return next
+    })
     if (side === 'back') {
       setShowBack((prev) => ({ ...prev, [docType]: false }))
     }
@@ -93,6 +107,8 @@ export default function App() {
 
   async function handleFileDrop(file: File, docType: DocType, side: Side) {
     setError(null)
+    clearStaleResults()
+    const slotKey = extractionSlotKey(docType, side)
     const previewUrl = URL.createObjectURL(file)
     setUploads((prev) => ({
       ...prev,
@@ -107,6 +123,7 @@ export default function App() {
     formData.append('doc_types', docType)
     formData.append('sides', side)
 
+    setExtractingSlots((prev) => new Set(prev).add(slotKey))
     try {
       setLoading(true)
       const data = await extractDocs(formData)
@@ -122,6 +139,11 @@ export default function App() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Extraction failed')
     } finally {
+      setExtractingSlots((prev) => {
+        const next = new Set(prev)
+        next.delete(slotKey)
+        return next
+      })
       setLoading(false)
     }
   }
@@ -222,6 +244,7 @@ export default function App() {
               front={uploads[doc.type]?.front}
               back={uploads[doc.type]?.back}
               extracted={extractedByDoc[doc.type]}
+              extracting={isDocExtracting(doc.type)}
               extractedData={extractedDocs.find((item) => item.doc_type === doc.type && item.side === 'front')?.extracted}
               showBack={showBack[doc.type]}
               onToggleBack={() => setShowBack((prev) => ({ ...prev, [doc.type]: true }))}

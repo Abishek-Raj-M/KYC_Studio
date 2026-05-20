@@ -1,4 +1,4 @@
-import { CheckCircle2, FileImage, PlusCircle, Scan } from 'lucide-react'
+import { CheckCircle2, FileImage, Loader2, PlusCircle, Scan } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { useState } from 'react'
 import { ClearUploadButton } from './ClearUploadButton'
@@ -10,6 +10,7 @@ interface DocumentUploadCardProps {
   front?: UploadedDocImage
   back?: UploadedDocImage
   extracted: boolean
+  extracting?: boolean
   extractedData?: Record<string, unknown>
   showBack: boolean
   onToggleBack: () => void
@@ -73,7 +74,7 @@ function UploadZone({
 }
 
 export function DocumentUploadCard(props: DocumentUploadCardProps) {
-  const { docType, title, front, back, extracted, extractedData, showBack, onToggleBack, onFileDrop, onClearImage } = props
+  const { docType, title, front, back, extracted, extracting = false, extractedData, showBack, onToggleBack, onFileDrop, onClearImage } = props
   const [showExtractedData, setShowExtractedData] = useState(false)
 
   const extractedDocType = String(extractedData?.document_type ?? '')
@@ -91,8 +92,13 @@ export function DocumentUploadCard(props: DocumentUploadCardProps) {
           <FileImage className="h-4 w-4 text-link" />
           <h3 className="font-heading text-sm font-semibold">{title}</h3>
         </div>
-        {extracted ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-1 text-xs text-emerald-500">
+        {extracting ? (
+          <span className="inline-flex items-center gap-1 rounded-full border border-link/30 bg-brand/15 px-2 py-1 text-xs font-medium text-link">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Extracting
+          </span>
+        ) : extracted ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-1 text-xs font-medium text-emerald-500">
             <CheckCircle2 className="h-3.5 w-3.5" />
             Extracted
           </span>

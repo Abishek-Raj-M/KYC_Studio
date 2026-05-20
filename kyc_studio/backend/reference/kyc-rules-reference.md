@@ -59,7 +59,7 @@ At least one date of birth taken from an uploaded passport, Aadhaar, or PAN must
 
 ### Age Eligibility (weight 0.10)
 
-The person must be **18 years or older** based on ground truth date of birth (or Aadhaar date of birth if needed as a fallback).
+The person must be **18 years or older** based on a **date of birth extracted from an uploaded document** (passport, Aadhaar, or PAN). If no DOB was read from any upload, this check **fails** — ground truth alone is not used.
 
 ### Gender Consistency (weight 0.08)
 
@@ -79,9 +79,9 @@ For **each document card**, every required field for that document type must be 
 
 ### Passport Expiry (weight 0.10)
 
-The passport expiration date must be **after today** for travel validity.
+The passport **expiration date must be extracted** from the upload and must be **after today**. If expiry was not read from the image, this check **fails**.
 
-A field row can still show as matching ground truth when both record the same expired date; this check enforces that the document is not expired for use.
+A field row can still show as matching ground truth when both record the same expired date; this rule enforces calendar validity from **extracted** expiry only.
 
 ---
 
