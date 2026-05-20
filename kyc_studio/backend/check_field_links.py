@@ -20,16 +20,6 @@ CHECK_FIELD_KEYS: Dict[str, Dict[str, Set[str]]] = {
     "Aadhaar Format": {"aadhaar": {"aadhaar_number"}},
     "PAN Format": {"pan": {"pan_number"}},
     "Passport Expiry": {"passport": {"date_of_expiration"}},
-    "Cross-Document Name Consistency": {
-        "passport": {"given_names", "surname"},
-        "aadhaar": {"name"},
-        "pan": {"name"},
-    },
-    "Age Eligibility": {
-        "passport": {"date_of_birth"},
-        "aadhaar": {"dob"},
-        "pan": {"dob"},
-    },
     "Gender Consistency": {
         "passport": {"sex"},
         "aadhaar": {"gender"},

@@ -41,6 +41,7 @@ export default function App() {
   const [showBack, setShowBack] = useState<Record<DocType, boolean>>({ passport: false, aadhaar: false, pan: false })
   const [selectedDocs, setSelectedDocs] = useState<DocType[]>([])
   const [extractingSlots, setExtractingSlots] = useState<Set<string>>(new Set())
+  const [evaluating, setEvaluating] = useState(false)
 
   function extractionSlotKey(docType: DocType, side: Side) {
     return `${docType}:${side}`
@@ -125,7 +126,6 @@ export default function App() {
 
     setExtractingSlots((prev) => new Set(prev).add(slotKey))
     try {
-      setLoading(true)
       const data = await extractDocs(formData)
       setExtractedDocs((prev) => {
         const next = [...prev]
@@ -144,7 +144,6 @@ export default function App() {
         next.delete(slotKey)
         return next
       })
-      setLoading(false)
     }
   }
 
@@ -166,6 +165,7 @@ export default function App() {
     }
     try {
       setError(null)
+      setEvaluating(true)
       setLoading(true)
       const response = await evaluateKyc({
         extracted_docs: activeExtractedDocs,
@@ -177,12 +177,14 @@ export default function App() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Evaluation failed')
     } finally {
+      setEvaluating(false)
       setLoading(false)
     }
   }
 
   const isIndividual = result?.scope === 'individual'
-  const canRunKyc = Boolean(groundTruth) && !loading
+  const anyExtracting = extractingSlots.size > 0
+  const canRunKyc = Boolean(groundTruth) && !evaluating && !anyExtracting
 
   function toggleSelectedDoc(docType: DocType) {
     setSelectedDocs((prev) => {
@@ -276,7 +278,7 @@ export default function App() {
             title={!groundTruth ? 'Upload ground truth JSON to enable evaluation' : undefined}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-card transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {evaluating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Run KYC
           </button>
 

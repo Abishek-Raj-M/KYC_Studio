@@ -55,4 +55,5 @@ def test_all_three_docs_each_card_has_only_relevant_rule_checks(
     assert "Passport Expiry" not in by_type["pan"]
     assert "PAN Format" in by_type["pan"]
 
-    assert "Cross-Document Name Consistency" not in by_type["pan"]
+    assert "Name Match" not in by_type["pan"]
+    assert "DOB Match" not in by_type["pan"]

@@ -12,12 +12,12 @@ from manifest_field_matches import (
     field_matches_from_manifest,
     genders_compatible,
     mandatory_field_failures,
-    manifest_doc_fields,
 )
 from models import CheckResult, DocumentKYCResult, FieldMatch, GroundTruth, KYCResult
 
 
 NAME_MATCH_THRESHOLD = 0.85
+IDENTITY_DOC_TYPES = frozenset({"aadhaar", "passport", "pan"})
 AADHAAR_REGEX = re.compile(r"^\d{12}$")
 PAN_REGEX = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]$")
 
@@ -46,13 +46,11 @@ class WeightedCheck:
 class RuleBasedKYCEngine:
     def __init__(self) -> None:
         self.weights: Dict[str, float] = {
-            "Name Match": 0.16,
+            "Name Match": 0.28,
             "DOB Match": 0.14,
             "Aadhaar Format": 0.08,
             "PAN Format": 0.08,
             "Passport Expiry": 0.10,
-            "Cross-Document Name Consistency": 0.12,
-            "Age Eligibility": 0.10,
             "Gender Consistency": 0.08,
             "Mandatory Fields": 1.00,
             "Address Present": 0.06,
@@ -81,19 +79,64 @@ class RuleBasedKYCEngine:
     def _pick_dob(doc: Dict[str, Any]) -> str:
         return str(doc.get("date_of_birth") or doc.get("dob") or "").strip()
 
-    def _extracted_dob_from_docs(self, docs: List[Dict[str, Any]]) -> tuple[Optional[datetime], str, str]:
-        """First parseable date of birth read from uploaded documents (not ground truth)."""
-        for doc in docs:
-            doc_type = str(doc.get("document_type") or "")
-            if doc_type not in {"aadhaar", "passport", "pan"}:
-                continue
-            raw = self._pick_dob(doc)
-            if not raw:
-                continue
-            parsed = self._parse_date(raw)
-            if parsed:
-                return parsed, raw, doc_type
-        return None, "", ""
+    @staticmethod
+    def _identity_docs(docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return [d for d in docs if str(d.get("document_type") or "").lower() in IDENTITY_DOC_TYPES]
+
+    @staticmethod
+    def _doc_label(doc: Dict[str, Any]) -> str:
+        meta = doc.get("_metadata") or {}
+        return str(meta.get("source_file") or doc.get("document_type") or "document")
+
+    def _name_match_all_docs(self, docs: List[Dict[str, Any]], gt_name: str) -> tuple[bool, str]:
+        identity = self._identity_docs(docs)
+        if not identity:
+            return False, "No identity documents uploaded"
+
+        entries = [(self._doc_label(d), str(d.get("document_type") or ""), self._pick_name(d)) for d in identity]
+        missing = [f"{label} ({dtype})" for label, dtype, name in entries if not name]
+        if missing:
+            return False, "Name not extracted on: " + ", ".join(missing)
+
+        names = [name for _, _, name in entries]
+        for i in range(len(names) - 1):
+            sim = self._sim(names[i], names[i + 1])
+            if sim < NAME_MATCH_THRESHOLD:
+                return False, (
+                    f"Extracted names differ across documents "
+                    f"({names[i]!r} vs {names[i + 1]!r}, similarity {sim:.2f})"
+                )
+
+        if gt_name:
+            for label, _, name in entries:
+                sim = self._sim(gt_name, name)
+                if sim < NAME_MATCH_THRESHOLD:
+                    return False, f"Name on {label} does not match ground truth (similarity {sim:.2f})"
+
+        return True, "Name present and consistent across all uploaded identity documents"
+
+    def _dob_match_all_docs(self, docs: List[Dict[str, Any]], gt_dob: str) -> tuple[bool, str]:
+        identity = self._identity_docs(docs)
+        if not identity:
+            return False, "No identity documents uploaded"
+
+        entries = [(self._doc_label(d), str(d.get("document_type") or ""), self._pick_dob(d)) for d in identity]
+        missing = [f"{label} ({dtype})" for label, dtype, dob in entries if not dob]
+        if missing:
+            return False, "Date of birth not extracted on: " + ", ".join(missing)
+
+        dobs = [dob for _, _, dob in entries]
+        reference = dobs[0]
+        for other in dobs[1:]:
+            if not self._dates_equal(reference, other):
+                return False, f"Extracted dates of birth differ across documents ({reference!r} vs {other!r})"
+
+        if gt_dob:
+            for label, _, dob in entries:
+                if not self._dates_equal(dob, gt_dob):
+                    return False, f"DOB on {label} does not match ground truth ({dob!r})"
+
+        return True, "DOB present and consistent across all uploaded identity documents"
 
     @staticmethod
     def _pick_gender(doc: Dict[str, Any]) -> str:
@@ -149,6 +192,8 @@ class RuleBasedKYCEngine:
     ) -> KYCResult:
         manifest = ground_truth_manifest or {}
         checks = self._build_checks(docs, ground_truth, manifest)
+        if scope != "all":
+            checks = [c for c in checks if c.name not in {"Name Match", "DOB Match"}]
         total_weight = sum(c.weight for c in checks)
         passed_weight = sum(c.weight for c in checks if c.passed)
         overall = (passed_weight / total_weight) * 100 if total_weight else 0.0
@@ -170,25 +215,6 @@ class RuleBasedKYCEngine:
             checks=top_checks,
         )
 
-    def _passport_name_match(self, passport_doc: Dict[str, Any], manifest: Dict[str, Any]) -> tuple[bool, float]:
-        passport_fields = manifest_doc_fields(manifest, "passport")
-        gt_given = self._norm(passport_fields.get("given_name"))
-        gt_surname = self._norm(passport_fields.get("surname"))
-        extracted_given = self._norm(passport_doc.get("given_names"))
-        extracted_surname = self._norm(passport_doc.get("surname"))
-        if gt_given and extracted_given:
-            given_sim = self._sim(gt_given, extracted_given)
-            if given_sim >= NAME_MATCH_THRESHOLD:
-                if gt_surname and extracted_surname:
-                    surname_ok = self._sim(gt_surname, extracted_surname) >= NAME_MATCH_THRESHOLD
-                    return surname_ok, min(given_sim, self._sim(gt_surname, extracted_surname))
-                return True, given_sim
-        combined = self._pick_name(passport_doc)
-        if gt_given and combined:
-            sim = self._sim(gt_given, combined)
-            return sim >= NAME_MATCH_THRESHOLD, sim
-        return False, 0.0
-
     def _build_checks(
         self,
         docs: List[Dict[str, Any]],
@@ -200,20 +226,12 @@ class RuleBasedKYCEngine:
         gt_gender = self._norm(ground_truth.gender).upper()
 
         doc_types = {str(d.get("document_type") or "unknown").lower() for d in docs}
-        doc_names = [self._pick_name(d) for d in docs if self._pick_name(d)]
-        passport_doc = next((d for d in docs if d.get("document_type") == "passport"), None)
-        if passport_doc and manifest:
-            name_match, best_name_sim = self._passport_name_match(passport_doc, manifest)
-        else:
-            best_name_sim = max((self._sim(gt_name, n) for n in doc_names), default=0.0)
-            name_match = best_name_sim >= NAME_MATCH_THRESHOLD if gt_name else False
+        name_match, name_detail = self._name_match_all_docs(docs, gt_name)
+        dob_match, dob_detail = self._dob_match_all_docs(docs, gt_dob)
 
         aadhaar_doc = next((d for d in docs if d.get("document_type") == "aadhaar"), None)
         pan_doc = next((d for d in docs if d.get("document_type") == "pan"), None)
         passport_doc = next((d for d in docs if d.get("document_type") == "passport"), None)
-
-        dob_candidates = [self._pick_dob(d) for d in docs if d.get("document_type") in {"aadhaar", "passport", "pan"}]
-        dob_match = bool(gt_dob and any(self._dates_equal(d, gt_dob) for d in dob_candidates))
 
         aadhaar_raw = self._norm((aadhaar_doc or {}).get("aadhaar_number"))
         aadhaar_value = _normalize_aadhaar_number(aadhaar_raw)
@@ -243,29 +261,6 @@ class RuleBasedKYCEngine:
                 else "Passport expiration date missing"
             )
         )
-
-        cross_doc_consistency = True
-        if len(doc_names) > 1:
-            for i in range(len(doc_names) - 1):
-                if self._sim(doc_names[i], doc_names[i + 1]) < NAME_MATCH_THRESHOLD:
-                    cross_doc_consistency = False
-                    break
-
-        dob_for_age, dob_raw, dob_doc = self._extracted_dob_from_docs(docs)
-        age_ok = False
-        if dob_for_age:
-            today = datetime.utcnow().date()
-            years = today.year - dob_for_age.date().year - (
-                (today.month, today.day) < (dob_for_age.date().month, dob_for_age.date().day)
-            )
-            age_ok = years >= 18
-            age_detail = (
-                f"Extracted DOB from {dob_doc} ({dob_raw}) indicates age {years} (must be >= 18)"
-                if age_ok
-                else f"Extracted DOB from {dob_doc} ({dob_raw}) indicates age {years} (under 18)"
-            )
-        else:
-            age_detail = "Date of birth not extracted from uploaded documents"
 
         passport_gender = self._pick_gender(passport_doc or {})
         aadhaar_gender = self._pick_gender(aadhaar_doc or {})
@@ -303,8 +298,8 @@ class RuleBasedKYCEngine:
 
         checks: List[WeightedCheck] = []
 
-        checks.append(WeightedCheck("Name Match", name_match, f"Best similarity to ground truth name: {best_name_sim:.2f}", self.weights["Name Match"]))
-        checks.append(WeightedCheck("DOB Match", dob_match, "DOB normalized match checked against uploaded identity documents", self.weights["DOB Match"]))
+        checks.append(WeightedCheck("Name Match", name_match, name_detail, self.weights["Name Match"]))
+        checks.append(WeightedCheck("DOB Match", dob_match, dob_detail, self.weights["DOB Match"]))
 
         if "aadhaar" in doc_types:
             checks.append(WeightedCheck("Aadhaar Format", aadhaar_ok, aadhaar_format_detail, self.weights["Aadhaar Format"]))
@@ -315,17 +310,6 @@ class RuleBasedKYCEngine:
         if "passport" in doc_types:
             checks.append(WeightedCheck("Passport Expiry", passport_expiry_ok, passport_expiry_detail, self.weights["Passport Expiry"]))
 
-        if len(doc_names) > 1:
-            checks.append(
-                WeightedCheck(
-                    "Cross-Document Name Consistency",
-                    cross_doc_consistency,
-                    "All extracted names are consistent across documents",
-                    self.weights["Cross-Document Name Consistency"],
-                )
-            )
-
-        checks.append(WeightedCheck("Age Eligibility", age_ok, age_detail, self.weights["Age Eligibility"]))
         show_gender_check = bool(
             (passport_gender and aadhaar_gender)
             or (pan_gender and gt_gender and pan_gender)

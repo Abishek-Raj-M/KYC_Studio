@@ -31,35 +31,42 @@ This document describes how rule-based KYC evaluation works in the studio: what 
 
 | Check | Weight | Applies when |
 |-------|--------|----------------|
-| Name Match | 0.16 | Always (per document card) |
-| DOB Match | 0.14 | Always |
-| Age Eligibility | 0.10 | Always |
+| Name Match | 0.28 | Combined scope only |
+| DOB Match | 0.14 | Combined scope only |
 | Gender Consistency | 0.08 | When comparable gender/sex values exist |
 | Mandatory Fields | 1.00 | Per document card (recomputed per doc) |
 | Passport Expiry | 0.10 | Passport uploaded |
 | Aadhaar Format | 0.08 | Aadhaar uploaded |
 | Address Present | 0.06 | Aadhaar uploaded |
 | PAN Format | 0.08 | PAN uploaded |
-| Cross-Document Name Consistency | 0.12 | Combined scope, 2+ documents |
+
+---
+
+## Checks — combined evaluation only
+
+These appear in the **Combined checks** section when scope is **Combined**. They do not appear on individual document cards.
+
+### Name Match (weight 0.28)
+
+Evaluates **all** uploaded identity documents (passport, Aadhaar, PAN) together:
+
+- **Name must be extracted** on every uploaded identity document. If any document is missing a name, this check **fails**.
+- **Names must be consistent** with each other (85% fuzzy similarity or higher between each pair).
+- If ground truth includes a person name, every extracted name must also match ground truth at the same threshold.
+
+**Passport:** Uses given name + surname combined into one name string.
+
+### DOB Match (weight 0.14)
+
+Same all-documents requirement for date of birth:
+
+- **DOB must be extracted** on every uploaded identity document. If any document is missing a DOB, this check **fails**.
+- **DOBs must be consistent** with each other (normalized date comparison).
+- If ground truth includes a DOB, every extracted DOB must match ground truth.
 
 ---
 
 ## Checks — shared (shown on relevant document cards)
-
-### Name Match (weight 0.16)
-
-Compares the name on each document to the name in ground truth.
-
-- **Passport:** Given name and surname are compared to ground truth using fuzzy matching (85% similarity or higher).
-- **Aadhaar / PAN:** Full name on the card is compared to the person name in ground truth the same way.
-
-### DOB Match (weight 0.14)
-
-At least one date of birth taken from an uploaded passport, Aadhaar, or PAN must match the date of birth in ground truth (dates are normalized before comparison).
-
-### Age Eligibility (weight 0.10)
-
-The person must be **18 years or older** based on a **date of birth extracted from an uploaded document** (passport, Aadhaar, or PAN). If no DOB was read from any upload, this check **fails** — ground truth alone is not used.
 
 ### Gender Consistency (weight 0.08)
 
@@ -102,16 +109,6 @@ A non-empty address must be present on the extracted Aadhaar.
 ### PAN Format (weight 0.08)
 
 The PAN must match the standard pattern: five letters, four digits, one letter (e.g. ABCDE1234F).
-
----
-
-## Checks — combined evaluation only
-
-These appear in the **Combined checks** section when scope is **Combined**. They do not appear on individual document cards.
-
-### Cross-Document Name Consistency (weight 0.12)
-
-When **two or more** documents are evaluated together, the names extracted from each document must be consistent with each other (85% similarity or higher between consecutive name pairs).
 
 ---
 

@@ -7,17 +7,15 @@ from models import CheckResult, FieldMatch
 
 
 # Rule names that apply only at the combined evaluation level (not on per-doc cards).
-RULE_CHECKS_COMBINED_ONLY = frozenset({"Cross-Document Name Consistency"})
+RULE_CHECKS_COMBINED_ONLY = frozenset({"Name Match", "DOB Match"})
 
 # Rule name -> document types; None means all uploaded types / global.
 RULE_CHECK_DOC_TYPES: dict[str, frozenset[str] | None] = {
-    "Name Match": None,
-    "DOB Match": None,
+    "Name Match": frozenset(),  # combined-only via RULE_CHECKS_COMBINED_ONLY
+    "DOB Match": frozenset(),  # combined-only via RULE_CHECKS_COMBINED_ONLY
     "Aadhaar Format": frozenset({"aadhaar"}),
     "PAN Format": frozenset({"pan"}),
     "Passport Expiry": frozenset({"passport"}),
-    "Cross-Document Name Consistency": frozenset(),  # handled via COMBINED_ONLY
-    "Age Eligibility": None,
     "Gender Consistency": None,
     "Mandatory Fields": None,  # recomputed per document
     "Address Present": frozenset({"aadhaar"}),

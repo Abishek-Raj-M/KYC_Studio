@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import logging
 import json
@@ -61,6 +62,66 @@ def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
+def _extract_upload_sync(
+    api_key: str,
+    temp_path: str,
+    declared: Optional[str],
+) -> Dict[str, Any]:
+    pipeline = OCRExtractionPipeline(api_key=api_key)
+    return pipeline.process_single_image(temp_path, declared_doc_type=declared)
+
+
+async def _extract_one_upload(
+    api_key: str,
+    idx: int,
+    upload: UploadFile,
+    doc_types: Optional[List[str]],
+    sides: Optional[List[str]],
+) -> Dict[str, Any]:
+    suffix = Path(upload.filename or "upload.png").suffix or ".png"
+    payload = await upload.read()
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(payload)
+        temp_path = tmp.name
+
+    declared = doc_types[idx] if doc_types and idx < len(doc_types) else None
+    try:
+        extracted = await asyncio.to_thread(_extract_upload_sync, api_key, temp_path, declared)
+    finally:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+
+    if not isinstance(extracted.get("_metadata"), dict):
+        extracted["_metadata"] = {}
+    filename = upload.filename or f"file_{idx}"
+    extracted["_metadata"]["source_file"] = filename
+    extracted["_metadata"]["uploaded_filename"] = filename
+
+    doc_type = doc_types[idx] if doc_types and idx < len(doc_types) else extracted.get("document_type", "unknown")
+    side = sides[idx] if sides and idx < len(sides) else "front"
+
+    logger.info(
+        "Extracted document filename=%s doc_type=%s detected_type=%s keys=%s pan_number=%s name=%s dob=%s",
+        filename,
+        doc_type,
+        extracted.get("document_type", "unknown"),
+        sorted(k for k in extracted.keys() if k != "_metadata"),
+        extracted.get("pan_number"),
+        extracted.get("name"),
+        extracted.get("dob"),
+    )
+
+    return {
+        "doc_type": doc_type,
+        "side": side,
+        "filename": filename,
+        "extracted": extracted,
+    }
+
+
 @app.post("/api/extract")
 async def extract_documents(
     files: List[UploadFile] = File(...),
@@ -71,52 +132,13 @@ async def extract_documents(
     if not api_key:
         raise HTTPException(status_code=500, detail="DIAL_API_KEY is not set")
 
-    pipeline = OCRExtractionPipeline(api_key=api_key)
-    extracted_docs: List[Dict[str, Any]] = []
+    if not files:
+        return {"documents": []}
 
-    for idx, upload in enumerate(files):
-        suffix = Path(upload.filename or "upload.png").suffix or ".png"
-        payload = await upload.read()
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(payload)
-            temp_path = tmp.name
-
-        declared = doc_types[idx] if doc_types and idx < len(doc_types) else None
-        try:
-            extracted = pipeline.process_single_image(temp_path, declared_doc_type=declared)
-        finally:
-            try:
-                os.unlink(temp_path)
-            except OSError:
-                pass
-
-        if not isinstance(extracted.get("_metadata"), dict):
-            extracted["_metadata"] = {}
-        extracted["_metadata"]["source_file"] = upload.filename or f"file_{idx}"
-        extracted["_metadata"]["uploaded_filename"] = upload.filename or f"file_{idx}"
-
-        extracted_docs.append(
-            {
-                "doc_type": (doc_types[idx] if doc_types and idx < len(doc_types) else extracted.get("document_type", "unknown")),
-                "side": (sides[idx] if sides and idx < len(sides) else "front"),
-                "filename": upload.filename or f"file_{idx}",
-                "extracted": extracted,
-            }
-        )
-
-        logger.info(
-            "Extracted document filename=%s doc_type=%s detected_type=%s keys=%s pan_number=%s name=%s dob=%s",
-            upload.filename or f"file_{idx}",
-            doc_types[idx] if doc_types and idx < len(doc_types) else "unknown",
-            extracted.get("document_type", "unknown"),
-            sorted(k for k in extracted.keys() if k != "_metadata"),
-            extracted.get("pan_number"),
-            extracted.get("name"),
-            extracted.get("dob"),
-        )
-
-    return {"documents": extracted_docs}
+    extracted_docs = await asyncio.gather(
+        *[_extract_one_upload(api_key, idx, upload, doc_types, sides) for idx, upload in enumerate(files)]
+    )
+    return {"documents": list(extracted_docs)}
 
 
 @app.post("/api/evaluate")
