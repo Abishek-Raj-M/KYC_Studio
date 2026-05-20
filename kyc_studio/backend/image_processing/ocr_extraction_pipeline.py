@@ -55,7 +55,7 @@ class OCRExtractionPipeline:
             import pytesseract
             quick_ocr = pytesseract.image_to_string(original)
             print("@@@@@@@@@@@@@ quick_ocr is:", quick_ocr)
-            detected_type = self.detector.detect(quick_ocr, os.path.basename(image_path))
+            detected_type = self.detector.detect(quick_ocr)
             doc_type = detected_type
             if declared_doc_type:
                 declared = str(declared_doc_type).lower().strip()

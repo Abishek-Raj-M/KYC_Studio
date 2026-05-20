@@ -3,10 +3,6 @@ Document Type Detector
 Auto-detects document type from image and OCR text
 """
 
-import re
-from typing import Optional
-
-
 class DocumentTypeDetector:
     """Detect document type from OCR text and visual features"""
     
@@ -40,14 +36,13 @@ class DocumentTypeDetector:
     #     "utility_bill": [...],
     # }
     
-    def detect(self, ocr_text: str, image_filename: str = "") -> str:
+    def detect(self, ocr_text: str) -> str:
         """
-        Detect document type from OCR text
-        
+        Detect document type from OCR text only (no filename hints).
+
         Args:
             ocr_text: Raw OCR extracted text
-            image_filename: Optional filename for hints
-            
+
         Returns:
             Document type string
         """
@@ -77,19 +72,8 @@ class DocumentTypeDetector:
             confidence = scores[detected_type]
             print(f"  🎯 Detected: {detected_type} (confidence: {confidence} keywords)")
             return detected_type
-        
-        # Fallback: check filename
-        if image_filename:
-            filename_lower = image_filename.lower()
-            if "pan" in filename_lower:
-                print("  🎯 Detected from filename: pan")
-                return "pan"
-            for doc_type in self.KEYWORDS.keys():
-                if doc_type.replace("_", "") in filename_lower.replace("_", ""):
-                    print(f"  🎯 Detected from filename: {doc_type}")
-                    return doc_type
-        
-        print(f"  ⚠️  Could not detect document type")
+
+        print("  ⚠️  Could not detect document type from OCR text")
         return "unknown"
     
     def get_confidence(self, ocr_text: str, doc_type: str) -> float:
