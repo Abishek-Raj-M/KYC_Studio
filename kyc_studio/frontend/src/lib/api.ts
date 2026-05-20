@@ -1,4 +1,4 @@
-import type { EvaluatePayload, ExtractResponse, KYCResult, BothResultEnvelope } from './types'
+import type { EvaluatePayload, ExtractResponse, KYCResult } from './types'
 
 export async function extractDocs(formData: FormData): Promise<ExtractResponse> {
   const res = await fetch('/api/extract', {
@@ -11,11 +11,11 @@ export async function extractDocs(formData: FormData): Promise<ExtractResponse> 
   return res.json()
 }
 
-export async function evaluateKyc(payload: EvaluatePayload): Promise<{ result: KYCResult | BothResultEnvelope }> {
+export async function evaluateKyc(payload: EvaluatePayload): Promise<{ result: KYCResult }> {
   const res = await fetch('/api/evaluate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, method: 'rules' }),
   })
   if (!res.ok) {
     throw new Error(`Evaluation failed: ${res.status}`)
@@ -23,18 +23,12 @@ export async function evaluateKyc(payload: EvaluatePayload): Promise<{ result: K
   return res.json()
 }
 
-export function downloadRulesReference() {
-  window.open('/api/reference/rules', '_blank', 'noopener,noreferrer')
-}
-
-export function downloadRubricReference(docType: string) {
-  window.open(`/api/reference/rubric/${docType}?format=md`, '_blank', 'noopener,noreferrer')
-}
-
-export function downloadActiveRubricsMarkdown(docTypes: string[]) {
-  for (const docType of docTypes) {
-    downloadRubricReference(docType)
+export async function fetchRulesReference(): Promise<string> {
+  const res = await fetch('/api/reference/rules')
+  if (!res.ok) {
+    throw new Error(`Failed to load rules reference: ${res.status}`)
   }
+  return res.text()
 }
 
 export function downloadGroundTruthTemplate() {

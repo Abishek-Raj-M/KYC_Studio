@@ -6,6 +6,7 @@ from datetime import datetime
 from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional
 
+from check_field_links import checks_with_field_matches
 from check_scoping import checks_for_document_card, score_from_checks
 from manifest_field_matches import (
     field_matches_from_manifest,
@@ -141,6 +142,9 @@ class RuleBasedKYCEngine:
 
         field_matches = self._field_matches(docs, manifest)
         per_doc = self._per_doc_results(docs, checks, field_matches)
+        top_checks = [c.to_model() for c in checks]
+        if scope == "all":
+            top_checks = checks_with_field_matches(top_checks, per_doc)
 
         return KYCResult(
             method="rules",
@@ -149,7 +153,7 @@ class RuleBasedKYCEngine:
             passed=passed,
             summary=f"Rule evaluation completed with score {round(overall, 2)}%",
             per_document_results=per_doc,
-            checks=[c.to_model() for c in checks],
+            checks=top_checks,
         )
 
     def _passport_name_match(self, passport_doc: Dict[str, Any], manifest: Dict[str, Any]) -> tuple[bool, float]:
@@ -339,7 +343,6 @@ class RuleBasedKYCEngine:
                 shared_checks,
                 doc_type,
                 doc_field_matches,
-                is_rubric=False,
                 multi_document=multi_document,
             )
             doc_score = score_from_checks(doc_checks)

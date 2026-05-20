@@ -26,7 +26,7 @@ KYC_LLM_MODEL=gpt-4o
 ```
 
 Notes:
-- `DIAL_API_KEY` is required for OCR Vision calls and LLM rubric evaluation.
+- `DIAL_API_KEY` is required for OCR Vision extraction.
 - `KYC_LLM_MODEL` is optional (defaults to `gpt-4o`).
 
 ## Project Structure
@@ -36,7 +36,6 @@ kyc_studio/
   backend/
     main.py
     kyc_rules.py
-    kyc_llm_agent.py
     models.py
     document_schemas_ext.py
     image_processing/
@@ -84,21 +83,17 @@ The Vite dev server proxies `/api/*` to `http://127.0.0.1:8000`.
 1. Open frontend in browser.
 2. Upload document images (Passport/Aadhaar/PAN front; back optional). The upload slot sets the vision schema at extract time (`doc_types` overrides Tesseract detection). The extract preview shows all returned fields (no 8-field cap).
 3. Upload ground-truth JSON.
-4. Select evaluation method:
-   - Rule-Based
-   - LLM Rubric
-   - Both
-5. If using LLM/Both, built-in rubrics are selected automatically per uploaded document (download references below the config panel).
-6. Click **Run KYC**.
-7. Review overall score, per-document checks, and field match details.
+4. Choose evaluation scope:
+   - **Per document** — one score card per uploaded document
+   - **Combined** — single overall score with cross-document checks
+5. Click **Run KYC**.
+6. Review overall score, per-document checks, and field match details.
 
 ## Available Backend APIs
 
 - `POST /api/extract` - OCR extraction for uploaded files (pass `doc_types` per file so Aadhaar/PAN schemas match the slot)
-- `POST /api/evaluate` - KYC evaluation (rules/llm/both)
-- `GET /api/reference/rules` - download built-in rules reference (Markdown)
-- `GET /api/reference/rubric/{doc_type}?format=md` - download built-in rubric for passport/aadhaar/pan
-- `GET /api/rubric/template` - legacy combined rubric YAML download
+- `POST /api/evaluate` - rule-based KYC evaluation (`scope`: `individual` | `all`)
+- `GET /api/reference/rules` - built-in rules reference (Markdown text for in-app viewer)
 - `GET /api/ground-truth/template` - download ground truth JSON template
 
 ## Troubleshooting

@@ -6,9 +6,3 @@ export function scoreFromChecks(checks: CheckResult[]): number {
   const passedWeight = checks.filter((c) => c.passed).reduce((sum, c) => sum + c.weight, 0)
   return Math.round((passedWeight / totalWeight) * 10000) / 100
 }
-
-export function splitRulesRubricChecks(checks: CheckResult[]) {
-  const rules = checks.filter((c) => c.name.startsWith('rules:'))
-  const rubric = checks.filter((c) => c.name.startsWith('rubric:'))
-  return { rules, rubric }
-}

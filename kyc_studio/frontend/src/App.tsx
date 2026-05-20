@@ -5,11 +5,11 @@ import { EvaluationConfig } from './components/EvaluationConfig'
 import { GroundTruthUpload } from './components/GroundTruthUpload'
 import { EvaluationReferencePanel } from './components/EvaluationReferencePanel'
 import { ThemeToggle } from './components/ThemeToggle'
+import { CombinedCheckCard } from './components/ResultsPanel/CombinedCheckCard'
 import { DocumentResultCard } from './components/ResultsPanel/DocumentResultCard'
-import { EvaluationModeBadge } from './components/ResultsPanel/EvaluationModeBadge'
 import { OverallScoreCard } from './components/ResultsPanel/OverallScoreCard'
 import { evaluateKyc, extractDocs } from './lib/api'
-import type { BothResultEnvelope, DocType, GroundTruthManifest, KYCResult, MethodType, ScopeType, Side } from './lib/types'
+import type { DocType, Side } from './lib/types'
 import { useKYC } from './context/KYCContext'
 
 const DOCS: { type: DocType; title: string }[] = [
@@ -18,17 +18,12 @@ const DOCS: { type: DocType; title: string }[] = [
   { type: 'pan', title: 'PAN' },
 ]
 
-function isBoth(v: unknown): v is BothResultEnvelope {
-  return Boolean(v && typeof v === 'object' && (v as BothResultEnvelope).method === 'both')
-}
-
 export default function App() {
   const {
     uploads,
     extractedDocs,
     groundTruth,
     groundTruthManifest,
-    method,
     scope,
     loading,
     error,
@@ -37,7 +32,6 @@ export default function App() {
     setExtractedDocs,
     setGroundTruth,
     setGroundTruthManifest,
-    setMethod,
     setScope,
     setLoading,
     setError,
@@ -46,17 +40,13 @@ export default function App() {
 
   const [showBack, setShowBack] = useState<Record<DocType, boolean>>({ passport: false, aadhaar: false, pan: false })
   const [selectedDocs, setSelectedDocs] = useState<DocType[]>([])
+
   function clearStaleResults() {
     setResult(null)
     setError(null)
   }
 
-  function changeMethod(next: MethodType) {
-    if (next !== method) clearStaleResults()
-    setMethod(next)
-  }
-
-  function changeScope(next: ScopeType) {
+  function changeScope(next: typeof scope) {
     if (next !== scope) clearStaleResults()
     setScope(next)
   }
@@ -159,7 +149,6 @@ export default function App() {
         extracted_docs: activeExtractedDocs,
         ground_truth: groundTruth,
         ground_truth_manifest: groundTruthManifest || undefined,
-        method,
         scope,
       })
       setResult(response.result)
@@ -170,33 +159,7 @@ export default function App() {
     }
   }
 
-  const resultDisplay = useMemo(() => {
-    if (!result) return null
-    const isIndividual = (isBoth(result) ? result.scope : (result as KYCResult).scope) === 'individual'
-    if (isBoth(result)) {
-      return {
-        scope: result.scope,
-        method: 'both' as const,
-        envelope: result,
-        isIndividual,
-        sections: [
-          {
-            label: isIndividual ? 'Per-document results' : 'Combined Evaluation',
-            data: result.combined_result,
-          },
-        ],
-      }
-    }
-    const single = result as KYCResult
-    return {
-      scope: single.scope,
-      method: single.method,
-      envelope: null,
-      isIndividual,
-      sections: [{ label: isIndividual ? 'Per-document results' : single.method.toUpperCase(), data: single }],
-    }
-  }, [result])
-
+  const isIndividual = result?.scope === 'individual'
   const canRunKyc = Boolean(groundTruth) && !loading
 
   function toggleSelectedDoc(docType: DocType) {
@@ -280,8 +243,8 @@ export default function App() {
             onParsedManifest={setGroundTruthManifest}
             onClear={clearGroundTruth}
           />
-          <EvaluationConfig method={method} scope={scope} onMethod={changeMethod} onScope={changeScope} />
-          <EvaluationReferencePanel method={method} selectedDocs={selectedDocs} />
+          <EvaluationConfig scope={scope} onScope={changeScope} />
+          <EvaluationReferencePanel />
 
           <button
             type="button"
@@ -302,76 +265,43 @@ export default function App() {
         </aside>
 
         <section className="flex min-h-0 w-[62%] flex-col gap-3 overflow-y-auto pl-1">
-          {!resultDisplay ? (
+          {!result ? (
             <div className="surface-glass flex h-full items-center justify-center rounded-2xl border border-border bg-panel text-fg-muted">
               Results will appear after running KYC.
             </div>
           ) : (
-            <div className={`grid gap-3 ${resultDisplay.sections.length > 1 ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
-              {resultDisplay.sections.map((section) => (
-                <div key={section.label} className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h2 className="font-heading text-lg font-semibold">{section.label}</h2>
-                    <EvaluationModeBadge mode={resultDisplay.method} />
-                  </div>
-
-                  {!resultDisplay.isIndividual ? (
-                    <OverallScoreCard score={section.data.overall_score} passed={section.data.passed} />
-                  ) : null}
-
-                  {!resultDisplay.isIndividual && resultDisplay.method === 'both' && resultDisplay.envelope ? (
-                    <div className="surface-glass rounded-2xl border border-border bg-panel p-3 shadow-card">
-                      <div className="mb-2 text-sm font-semibold">Score Breakdown</div>
-                      <div className="grid gap-2 text-xs md:grid-cols-2">
-                        <div className="rounded-lg border border-border bg-panel-muted p-2">
-                          <div className="text-fg-muted">Rules Weight</div>
-                          <div className="font-semibold">{(resultDisplay.envelope.score_breakdown.rules_weight * 100).toFixed(0)}%</div>
-                          <div className="mt-1 text-fg-muted">Rules Score: {resultDisplay.envelope.score_breakdown.rules_score.toFixed(2)}%</div>
-                          <div className="text-fg-muted">Contribution: {resultDisplay.envelope.score_breakdown.rules_contribution.toFixed(2)}%</div>
-                        </div>
-                        <div className="rounded-lg border border-border bg-panel-muted p-2">
-                          <div className="text-fg-muted">Rubric Weight</div>
-                          <div className="font-semibold">{(resultDisplay.envelope.score_breakdown.rubric_weight * 100).toFixed(0)}%</div>
-                          <div className="mt-1 text-fg-muted">Rubric Score: {resultDisplay.envelope.score_breakdown.rubric_score.toFixed(2)}%</div>
-                          <div className="text-fg-muted">Contribution: {resultDisplay.envelope.score_breakdown.rubric_contribution.toFixed(2)}%</div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {resultDisplay.isIndividual || resultDisplay.method === 'both' ? (
+            <div className="space-y-4">
+              {!isIndividual ? (
+                <section className="space-y-3">
+                  <h2 className="font-heading text-lg font-semibold">Combined evaluation</h2>
+                  <OverallScoreCard score={result.overall_score} passed={result.passed} />
+                  <div className="surface-glass rounded-2xl border border-border bg-panel p-3 shadow-card">
+                    <p className="mb-2 text-sm font-semibold">Combined checks</p>
+                    <p className="mb-3 text-xs text-fg-muted">Expand a check to see the field rows it uses.</p>
                     <div className="space-y-2">
-                      {section.data.per_document_results.map((doc) => (
-                        <DocumentResultCard
-                          key={`${section.label}-${doc.document_id}`}
-                          result={doc}
-                          showScoreBreakdown={resultDisplay.isIndividual && resultDisplay.method === 'both'}
-                        />
+                      {result.checks.map((check) => (
+                        <CombinedCheckCard key={check.name} check={check} />
                       ))}
                     </div>
-                  ) : (
-                    <div className="surface-glass rounded-2xl border border-border bg-panel p-3 shadow-card">
-                      <div className="mb-2 text-sm font-semibold">Combined Checks</div>
-                      <div className="space-y-2">
-                        {section.data.checks.map((check) => (
-                          <div key={check.name} className="rounded-lg border border-border bg-panel-muted p-2 text-xs">
-                            <div className="flex justify-between">
-                              <span className="font-medium">
-                                {check.name}
-                                <span className="ml-2 text-fg-muted">({check.score.toFixed(1)} / 100, w={check.weight.toFixed(2)})</span>
-                              </span>
-                              <span className={check.passed ? 'text-emerald-500' : 'text-rose-500'}>
-                                {check.passed ? 'PASS' : 'FAIL'}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-fg-muted">{check.detail}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+                  </div>
+                </section>
+              ) : (
+                <section className="space-y-2">
+                  <h2 className="font-heading text-lg font-semibold">Per-document results</h2>
+                  {result.per_document_results.map((doc) => (
+                    <DocumentResultCard key={doc.document_id} result={doc} />
+                  ))}
+                </section>
+              )}
+
+              {!isIndividual ? (
+                <section className="space-y-2">
+                  <h2 className="font-heading text-lg font-semibold">Per-document breakdown</h2>
+                  {result.per_document_results.map((doc) => (
+                    <DocumentResultCard key={doc.document_id} result={doc} />
+                  ))}
+                </section>
+              ) : null}
             </div>
           )}
         </section>

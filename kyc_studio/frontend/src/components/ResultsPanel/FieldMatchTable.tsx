@@ -1,8 +1,12 @@
 import type { FieldMatch } from '../../lib/types'
 
-export function FieldMatchTable({ rows }: { rows: FieldMatch[] }) {
+export function FieldMatchTable({ rows, showSource = false }: { rows: FieldMatch[]; showSource?: boolean }) {
   if (!rows.length) {
-    return <div className="rounded-xl border border-border bg-panel-muted p-3 text-xs text-fg-muted">No field-level details.</div>
+    return (
+      <div className="rounded-xl border border-border bg-panel-muted p-3 text-xs text-fg-muted">
+        No field-level details.
+      </div>
+    )
   }
 
   return (
@@ -10,6 +14,7 @@ export function FieldMatchTable({ rows }: { rows: FieldMatch[] }) {
       <table className="w-full min-w-[380px] text-left text-xs">
         <thead className="bg-panel-muted text-fg-muted">
           <tr>
+            {showSource ? <th className="px-2 py-2">Document</th> : null}
             <th className="px-2 py-2">Field</th>
             <th className="px-2 py-2">Extracted</th>
             <th className="px-2 py-2">Ground Truth</th>
@@ -18,7 +23,15 @@ export function FieldMatchTable({ rows }: { rows: FieldMatch[] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.field} className="border-t border-border/70">
+            <tr
+              key={`${row.document_id ?? ''}-${row.doc_type ?? ''}-${row.field}`}
+              className="border-t border-border/70"
+            >
+              {showSource ? (
+                <td className="px-2 py-2 capitalize text-fg-muted">
+                  {row.doc_type ? row.doc_type.replace(/_/g, ' ') : '—'}
+                </td>
+              ) : null}
               <td className="px-2 py-2 font-semibold">{row.field}</td>
               <td className="px-2 py-2">{String(row.extracted ?? '')}</td>
               <td className="px-2 py-2">{String(row.ground_truth ?? '')}</td>

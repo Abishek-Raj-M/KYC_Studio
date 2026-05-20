@@ -9,6 +9,7 @@ from conftest import build_extracted_docs
 
 DOC_KEYS = ("passport", "aadhaar", "pan")
 SCOPES = ("individual", "all")
+REMOVED_METHODS = ("llm", "both")
 
 
 def subsets(keys: tuple[str, ...]) -> List[tuple[str, ...]]:
@@ -41,10 +42,7 @@ def test_rules_evaluate_matrix(
             "id_numbers": {},
         },
         "ground_truth_manifest": manifest,
-        "method": "rules",
         "scope": scope,
-        "rubric_mode": "single",
-        "rubrics_by_doc_type": {},
     }
     res = client.post("/api/evaluate", json=payload)
     assert res.status_code == 200, res.text
@@ -60,6 +58,25 @@ def test_rules_evaluate_matrix(
     assert len(result["per_document_results"]) == len(selected)
 
 
+@pytest.mark.parametrize("method", REMOVED_METHODS)
+def test_removed_evaluation_methods_return_400(
+    client,
+    manifest: Dict[str, Any],
+    doc_uploads: Dict[str, Dict[str, Any]],
+    method: str,
+) -> None:
+    extracted_docs = build_extracted_docs(["pan"], doc_uploads)
+    payload = {
+        "extracted_docs": extracted_docs,
+        "ground_truth": {"name": "RAJESH SHARMA"},
+        "ground_truth_manifest": manifest,
+        "method": method,
+        "scope": "individual",
+    }
+    res = client.post("/api/evaluate", json=payload)
+    assert res.status_code in (400, 422)
+
+
 def test_rules_manifest_id_numbers_alignment(
     client,
     manifest: Dict[str, Any],
@@ -71,10 +88,7 @@ def test_rules_manifest_id_numbers_alignment(
         "extracted_docs": extracted_docs,
         "ground_truth": {"name": "RAJESH SHARMA"},
         "ground_truth_manifest": manifest,
-        "method": "rules",
         "scope": "individual",
-        "rubric_mode": "single",
-        "rubrics_by_doc_type": {},
     }
     res = client.post("/api/evaluate", json=payload)
     assert res.status_code == 200
@@ -86,3 +100,9 @@ def test_rules_manifest_id_numbers_alignment(
     assert aad_fm.get("aadhaar_number") == "match"
     pass_fm = {fm["field"]: fm["status"] for fm in by_type["passport"]["field_matches"]}
     assert pass_fm.get("passport_number") == "match"
+
+
+def test_reference_rules_endpoint(client) -> None:
+    res = client.get("/api/reference/rules")
+    assert res.status_code == 200
+    assert "Name Match" in res.text

@@ -84,3 +84,96 @@ body::before {
     --surface-backdrop: none;
   }
 }
+
+/* Rendered markdown (rules reference, etc.) */
+.markdown-doc {
+  line-height: 1.55;
+}
+
+.markdown-doc > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-doc > *:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-doc h1 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  color: var(--color-fg);
+}
+
+.markdown-doc h2 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 1.25rem 0 0.5rem;
+  color: var(--color-fg);
+}
+
+.markdown-doc h3 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin: 1rem 0 0.35rem;
+  color: var(--color-fg);
+}
+
+.markdown-doc p {
+  margin: 0.5rem 0;
+  font-size: 0.75rem;
+  color: var(--color-fg-muted);
+}
+
+.markdown-doc ul,
+.markdown-doc ol {
+  margin: 0.35rem 0 0.5rem;
+  padding-left: 1.15rem;
+  font-size: 0.75rem;
+  color: var(--color-fg-muted);
+}
+
+.markdown-doc li {
+  margin: 0.2rem 0;
+}
+
+.markdown-doc li::marker {
+  color: var(--link-color);
+}
+
+.markdown-doc strong {
+  font-weight: 600;
+  color: var(--color-fg);
+}
+
+.markdown-doc hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 0.85rem 0;
+}
+
+.markdown-doc table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.7rem;
+}
+
+.markdown-doc th,
+.markdown-doc td {
+  border: 1px solid var(--color-border);
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.markdown-doc th {
+  background: var(--color-panel);
+  font-weight: 600;
+  color: var(--color-fg);
+}
+
+.markdown-doc td {
+  color: var(--color-fg-muted);
+}

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
-MethodType = Literal["rules", "llm", "both"]
+MethodType = Literal["rules"]
 ScopeType = Literal["individual", "all"]
 DocType = Literal["passport", "aadhaar", "pan"]
 
@@ -32,9 +32,6 @@ class KYCRequest(BaseModel):
     ground_truth_manifest: Optional[Dict[str, Any]] = None
     method: MethodType = "rules"
     scope: ScopeType = "individual"
-    rubric: Optional[str] = None
-    rubric_mode: Literal["single", "per_doc"] = "single"
-    rubrics_by_doc_type: Dict[str, str] = Field(default_factory=dict)
 
 
 class CheckResult(BaseModel):
@@ -43,6 +40,7 @@ class CheckResult(BaseModel):
     score: float
     detail: str
     weight: float = 1.0
+    field_matches: List["FieldMatch"] = Field(default_factory=list)
 
 
 class FieldMatch(BaseModel):
@@ -51,6 +49,8 @@ class FieldMatch(BaseModel):
     ground_truth: Any
     status: Literal["match", "mismatch", "missing", "partial"]
     coverage_percent: Optional[float] = None
+    doc_type: Optional[str] = None
+    document_id: Optional[str] = None
 
 
 class DocumentKYCResult(BaseModel):

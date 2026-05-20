@@ -1,9 +1,6 @@
 export type DocType = 'passport' | 'aadhaar' | 'pan'
 export type Side = 'front' | 'back'
-export type MethodType = 'rules' | 'llm' | 'both'
 export type ScopeType = 'individual' | 'all'
-/** @deprecated Rubrics are built-in; kept for API compatibility only */
-export type RubricMode = 'single' | 'per_doc'
 
 export interface UploadedDocImage {
   docType: DocType
@@ -40,6 +37,7 @@ export interface CheckResult {
   score: number
   detail: string
   weight: number
+  field_matches?: FieldMatch[]
 }
 
 export interface FieldMatch {
@@ -48,6 +46,8 @@ export interface FieldMatch {
   ground_truth: unknown
   status: 'match' | 'mismatch' | 'missing' | 'partial'
   coverage_percent?: number | null
+  doc_type?: string
+  document_id?: string
 }
 
 export interface DocumentKYCResult {
@@ -60,32 +60,13 @@ export interface DocumentKYCResult {
 }
 
 export interface KYCResult {
-  method: MethodType
+  method: 'rules'
   scope: ScopeType
   overall_score: number
   passed: boolean
   summary: string
   per_document_results: DocumentKYCResult[]
   checks: CheckResult[]
-}
-
-export interface BothResultEnvelope {
-  method: 'both'
-  scope: ScopeType
-  overall_score: number
-  passed: boolean
-  summary: string
-  score_breakdown: {
-    rules_weight: number
-    rubric_weight: number
-    rules_score: number
-    rubric_score: number
-    rules_contribution: number
-    rubric_contribution: number
-  }
-  combined_result: KYCResult
-  rules_result: KYCResult
-  llm_result: KYCResult
 }
 
 export interface ExtractResponse {
@@ -96,9 +77,5 @@ export interface EvaluatePayload {
   extracted_docs: ExtractedDocument[]
   ground_truth: GroundTruth
   ground_truth_manifest?: GroundTruthManifest
-  method: MethodType
   scope: ScopeType
-  rubric?: string
-  rubric_mode?: RubricMode
-  rubrics_by_doc_type?: Partial<Record<DocType, string>>
 }
