@@ -25,7 +25,7 @@ from ocr_extraction_pipeline import OCRExtractionPipeline  # noqa: E402
 from canonical_mapper import normalize_document, normalize_ground_truth
 from document_schemas_ext import ExtendedDocumentSchemaHandler  # noqa: E402
 from kyc_rules import RuleBasedKYCEngine  # noqa: E402
-from models import GroundTruth, KYCRequest, KYCResult  # noqa: E402
+from models import BatchExtractItem, BatchExtractRequest, GroundTruth, KYCRequest, KYCResult  # noqa: E402
 
 
 ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
@@ -141,6 +141,71 @@ async def extract_documents(
     return {"documents": list(extracted_docs)}
 
 
+def _validate_batch_extract_items(items: List[BatchExtractItem]) -> None:
+    if len(items) > 3:
+        raise HTTPException(status_code=400, detail="Maximum 3 items allowed")
+    seen_doc_types: set[str] = set()
+    for item in items:
+        if item.doc_type in seen_doc_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Duplicate doc_type '{item.doc_type}'; at most one item per doc type",
+            )
+        seen_doc_types.add(item.doc_type)
+        path = Path(item.file_path)
+        if not path.is_file():
+            raise HTTPException(status_code=400, detail=f"File not found: {item.file_path}")
+
+
+async def _extract_one_local(
+    api_key: str,
+    idx: int,
+    item: BatchExtractItem,
+) -> Dict[str, Any]:
+    resolved = str(Path(item.file_path).resolve())
+    extracted = await asyncio.to_thread(
+        _extract_upload_sync, api_key, resolved, item.doc_type
+    )
+    filename = Path(resolved).name
+    if not isinstance(extracted.get("_metadata"), dict):
+        extracted["_metadata"] = {}
+    extracted["_metadata"]["source_file"] = filename
+    extracted["_metadata"]["file_path"] = resolved
+
+    logger.info(
+        "Batch extract filename=%s doc_type=%s detected_type=%s",
+        filename,
+        item.doc_type,
+        extracted.get("document_type", "unknown"),
+    )
+
+    return {
+        "doc_type": item.doc_type,
+        "side": "front",
+        "filename": filename,
+        "extracted": extracted,
+    }
+
+
+@app.post("/api/batch-extract")
+async def batch_extract_documents(req: BatchExtractRequest) -> Dict[str, Any]:
+    """Extract up to 3 local image paths in parallel (front side only)."""
+    api_key = os.getenv("DIAL_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="DIAL_API_KEY is not set")
+
+    items = req.items
+    if not items:
+        return {"documents": []}
+
+    _validate_batch_extract_items(items)
+
+    extracted_docs = await asyncio.gather(
+        *[_extract_one_local(api_key, idx, item) for idx, item in enumerate(items)]
+    )
+    return {"documents": list(extracted_docs)}
+
+
 @app.post("/api/evaluate")
 def evaluate_kyc(req: KYCRequest) -> Dict[str, Any]:
     if req.method != "rules":
@@ -247,6 +312,7 @@ def root() -> Dict[str, Any]:
         "routes": [
             "GET /api/health",
             "POST /api/extract",
+            "POST /api/batch-extract",
             "POST /api/evaluate",
             "POST /api/run-upload",
             "GET /api/reference/rules",

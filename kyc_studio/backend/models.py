@@ -10,6 +10,15 @@ ScopeType = Literal["individual", "all"]
 DocType = Literal["passport", "aadhaar", "pan"]
 
 
+class BatchExtractItem(BaseModel):
+    doc_type: DocType
+    file_path: str
+
+
+class BatchExtractRequest(BaseModel):
+    items: List[BatchExtractItem] = Field(..., min_length=1, max_length=3)
+
+
 class DocumentUpload(BaseModel):
     doc_type: DocType
     side: Literal["front", "back"]

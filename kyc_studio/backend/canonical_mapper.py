@@ -93,17 +93,18 @@ def normalize_ground_truth(raw_gt: Dict[str, Any]) -> Dict[str, Any]:
         pan_fields = ((documents.get("pan_card") or {}).get("fields") or {}) if isinstance(documents.get("pan_card"), dict) else {}
         aadhaar_fields = ((documents.get("aadhaar") or {}).get("fields") or {}) if isinstance(documents.get("aadhaar"), dict) else {}
 
+        id_numbers = {
+            "passport": _pick(passport_fields, FIELD_ALIASES.get("passport_number", ["passport_number"])),
+            "pan": _pick(pan_fields, FIELD_ALIASES.get("pan_number", ["pan_number"])),
+            "aadhaar": _pick(aadhaar_fields, FIELD_ALIASES.get("aadhaar_number", ["aadhaar_number"])),
+        }
         return {
             "name": _pick(person, FIELD_ALIASES.get("name", ["name"])),
             "dob": _pick(person, FIELD_ALIASES.get("dob", ["dob"])),
             "gender": _pick(person, FIELD_ALIASES.get("gender", ["gender"])),
             "nationality": _pick(person, FIELD_ALIASES.get("nationality", ["nationality"])),
             "address": _pick(aadhaar_fields, FIELD_ALIASES.get("address", ["address"])),
-            "id_numbers": {
-                "passport": _pick(passport_fields, FIELD_ALIASES.get("passport_number", ["passport_number"])),
-                "pan": _pick(pan_fields, FIELD_ALIASES.get("pan_number", ["pan_number"])),
-                "aadhaar": _pick(aadhaar_fields, FIELD_ALIASES.get("aadhaar_number", ["aadhaar_number"])),
-            },
+            "id_numbers": {k: v for k, v in id_numbers.items() if v not in [None, ""]},
         }
 
     normalized: Dict[str, Any] = {}
